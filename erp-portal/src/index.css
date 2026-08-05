@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 테마: 라이트(기본) ─────────────────────────── */
+:root {
+  --surface: #f4f6f8;
+  --panel: #ffffff;
+  --line: #e2e8f0;
+  --ink: #1e293b;
+  --sub: #64748b;
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+}
+
+/* ── 다크 모드 ─────────────────────────────────── */
+[data-theme="dark"] {
+  --surface: #0f172a;
+  --panel: #1e293b;
+  --line: #334155;
+  --ink: #e2e8f0;
+  --sub: #94a3b8;
+  --accent: #3b82f6;
+  --accent-soft: #1e3a5f;
+}
+
+/* ── 블루-그레이 모드 ──────────────────────────── */
+[data-theme="bluegrey"] {
+  --surface: #eceff4;
+  --panel: #f8fafc;
+  --line: #cbd5e1;
+  --ink: #334155;
+  --sub: #64748b;
+  --accent: #475569;
+  --accent-soft: #e2e8f0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: "Pretendard", "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
