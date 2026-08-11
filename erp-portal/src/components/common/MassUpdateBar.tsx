@@ -20,6 +20,9 @@ interface Props {
   keyOf?: (row: Entity) => string; // 복합키 화면용 (예: BOM 은 모품목+자품목)
   keyLabel?: string; // keyOf 사용 시 오류 메시지에 쓸 이름
   filename?: string;
+  // 컬럼 단위로 판정할 수 없는 규칙(다른 마스터와의 정합 등)을 검사한다.
+  // 오류 메시지를 반환하면 해당 행은 반영하지 않는다.
+  validateRow?: (row: Entity) => string | null;
 }
 
 interface UploadPlan {
@@ -29,7 +32,7 @@ interface UploadPlan {
   ignoredColumns: string[];
 }
 
-export default function MassUpdateBar({ title, store, rows, columns, newRow, keyKey, keyOf, keyLabel, filename }: Props) {
+export default function MassUpdateBar({ title, store, rows, columns, newRow, keyKey, keyOf, keyLabel, filename, validateRow }: Props) {
   const [plan, setPlan] = useState<UploadPlan | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -96,6 +99,9 @@ export default function MassUpdateBar({ title, store, rows, columns, newRow, key
         result.errors.push(`${line}행: 필수값 누락 — ${missing.map((c) => c.label).join(", ")}`);
         continue;
       }
+
+      const ruleError = validateRow?.(patch);
+      if (ruleError) { result.errors.push(`${line}행: ${ruleError}`); continue; }
 
       const existing = all.find((r) => identify(r) === keyValue);
       if (existing) {

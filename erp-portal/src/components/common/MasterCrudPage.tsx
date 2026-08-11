@@ -24,9 +24,10 @@ interface Props {
   keyField?: string; // 일괄 업로드 매칭 키 (기본: 첫 번째 필드 = 코드)
   keyOf?: (row: Entity) => string; // 복합키 화면용
   keyLabel?: string; // keyOf 사용 시 오류 메시지에 쓸 이름
+  validateRow?: (row: Entity) => string | null; // 다른 마스터와의 정합 등 행 단위 규칙
 }
 
-export default function MasterCrudPage({ moduleLabel, title, store, fields, newRow, searchKeys, keyField, keyOf, keyLabel }: Props) {
+export default function MasterCrudPage({ moduleLabel, title, store, fields, newRow, searchKeys, keyField, keyOf, keyLabel, validateRow }: Props) {
   const rows = useStore(store);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -103,6 +104,7 @@ export default function MasterCrudPage({ moduleLabel, title, store, fields, newR
             keyKey={keyField}
             keyOf={keyOf}
             keyLabel={keyLabel}
+            validateRow={validateRow}
           />
         </div>
       </div>

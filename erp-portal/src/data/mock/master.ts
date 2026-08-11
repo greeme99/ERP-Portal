@@ -64,6 +64,9 @@ export const partnerStore = createStore("master.partner", [
   { id: "V-1001", code: "V-1001", name: "삼화콘덴서", type: "공급사", country: "KR", currency: "KRW", payTerm: "월말 60일", status: "거래중" },
   { id: "V-1002", code: "V-1002", name: "대덕전자", type: "공급사", country: "KR", currency: "KRW", payTerm: "월말 60일", status: "거래중" },
   { id: "V-2001", code: "V-2001", name: "Shenzhen Motor Co.", type: "공급사", country: "CN", currency: "USD", payTerm: "T/T 30", status: "거래중" },
+  { id: "V-1003", code: "V-1003", name: "동양열선", type: "공급사", country: "KR", currency: "KRW", payTerm: "월말 30일", status: "거래중" },
+  { id: "V-2002", code: "V-2002", name: "Ganfeng Cell", type: "공급사", country: "CN", currency: "USD", payTerm: "T/T 45", status: "거래중" },
+  { id: "V-1009", code: "V-1009", name: "한빛수지", type: "공급사", country: "KR", currency: "KRW", payTerm: "현금", status: "거래중지" },
 ]);
 
 export const warehouseStore = createStore("master.warehouse", [
