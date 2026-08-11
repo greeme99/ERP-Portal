@@ -1,6 +1,7 @@
 // CO-001 원가요소마스터 (Cost Element Master) — 재료비·노무비·경비 원가 요소 및 직접비 vs 간접비 분류 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface CostElementItem {
   id: string;
@@ -25,19 +26,15 @@ export default function CostElementMaster() {
 
   const filtered = items.filter((i) => catFilter === "전체" || i.costCategory === catFilter);
 
-  const excel = () =>
-    downloadCsv(
-      "관리회계_원가요소_마스터_대장.csv",
-      ["원가요소코드", "원가요소명", "원가분류", "변동/고정구분", "배부기준키", "연동G/L계정"],
-      filtered.map((i) => [
-        i.costElementCode,
-        i.costElementName,
-        i.costCategory,
-        i.costBehavior,
-        i.allocationKey,
-        i.glAccountCode,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "costElementCode", label: "원가요소코드", required: true },
+    { key: "costElementName", label: "원가요소명", required: true },
+    { key: "costCategory", label: "원가분류", type: "select", options: ["직접재료비", "직접노무비", "제조경비", "판매관리비"] },
+    { key: "costBehavior", label: "원가행태", type: "select", options: ["변동비 (Variable)", "고정비 (Fixed)"] },
+    { key: "allocationKey", label: "배부키" },
+    { key: "glAccountCode", label: "GL계정코드" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -83,9 +80,16 @@ export default function CostElementMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 원가요소마스터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="원가요소마스터"
+            filename="관리회계_원가요소_마스터.csv"
+            store={costElementStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("CE"), costElementCode: "", costElementName: "", costCategory: "제조경비", costBehavior: "변동비 (Variable)", allocationKey: "", glAccountCode: "" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

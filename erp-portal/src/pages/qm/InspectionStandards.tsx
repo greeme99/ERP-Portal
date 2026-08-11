@@ -1,6 +1,7 @@
 // QM-001 검사기준관리 — 품목별 검사항목·스펙 기준치·AQL 허용차수 및 검사 기준서
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface InspectionStandard {
   id: string;
@@ -28,23 +29,19 @@ export default function InspectionStandards() {
 
   const filtered = standards.filter((s) => typeFilter === "전체" || s.inspType === typeFilter);
 
-  const excel = () =>
-    downloadCsv(
-      "품질_검사기준서_대장.csv",
-      ["기준서번호", "품목코드", "품목명", "검사구분", "검사항목", "규격기준치", "AQL수준", "개정번호", "상태", "수정일자"],
-      filtered.map((s) => [
-        s.stdNo,
-        s.materialCode,
-        s.materialName,
-        s.inspType,
-        s.checkItem,
-        s.specValue,
-        s.aqlLevel,
-        s.revNo,
-        s.status,
-        s.updatedAt,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "stdNo", label: "기준서번호", required: true },
+    { key: "materialCode", label: "품목코드", required: true },
+    { key: "materialName", label: "품목명" },
+    { key: "inspType", label: "검사구분", type: "select", options: ["수입검사", "공정검사", "출하검사"] },
+    { key: "checkItem", label: "검사항목", required: true },
+    { key: "specValue", label: "규격기준치" },
+    { key: "aqlLevel", label: "AQL수준" },
+    { key: "revNo", label: "개정번호" },
+    { key: "status", label: "상태", type: "select", options: ["개정완료", "적용중"] },
+    { key: "updatedAt", label: "수정일자" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -73,9 +70,16 @@ export default function InspectionStandards() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 검사기준서 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="검사기준서"
+            filename="품질_검사기준서_대장.csv"
+            store={inspectionStdStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("IS"), stdNo: "", materialCode: "", materialName: "", inspType: "수입검사", checkItem: "", specValue: "", aqlLevel: "", revNo: "Rev.0", status: "적용중", updatedAt: "" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

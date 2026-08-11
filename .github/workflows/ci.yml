@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 같은 브랜치에 새 푸시가 오면 진행 중인 검증을 취소한다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · build · scenarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: erp-portal
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: erp-portal/package-lock.json
+
+      # lockfile 을 추적하므로 npm ci 로 재현 가능하게 설치한다.
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # CLAUDE.md Canonical Commands 와 동일한 진입점을 쓴다.
+      # tsx 는 devDependency 이므로 npx 가 로컬 바이너리를 해석한다.
+      - name: Unit — store persistence
+        run: npx tsx scripts/store-persistence-scenario.ts
+
+      - name: E2E — 통합 시나리오
+        run: npx tsx scripts/e2e-scenario.ts
+
+      - name: E2E — 5대 대표 시나리오
+        run: npx tsx scripts/run-5-scenarios.ts

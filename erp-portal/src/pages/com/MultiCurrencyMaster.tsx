@@ -1,6 +1,7 @@
 // COM-020 다국어및통화마스터 (Multi-Currency & Exchange Rate Master) — 전사 해외 영업·구매 실시간 환율 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface CurrencyMasterItem {
   id: string;
@@ -25,20 +26,15 @@ export default function MultiCurrencyMaster() {
 
   const filtered = items.filter((i) => currFilter === "전체" || i.currencyCode.includes(currFilter));
 
-  const excel = () =>
-    downloadCsv(
-      "시스템_다국어_통화_매매기준율_마스터_대장.csv",
-      ["통화코드", "통화명", "매매기준율(KRW)", "변동률(%)", "환율수집처", "동기화일시", "상태"],
-      filtered.map((i) => [
-        i.currencyCode,
-        i.currencyName,
-        i.baseExchangeRate,
-        `${i.rateChangePct}%`,
-        i.exchangeProviderName,
-        i.lastSyncTimestamp,
-        i.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "currencyCode", label: "통화코드", required: true },
+    { key: "currencyName", label: "통화명", required: true },
+    { key: "baseExchangeRate", label: "매매기준율(KRW)", type: "number" },
+    { key: "rateChangePct", label: "전일대비변동률(%)", type: "number" },
+    { key: "exchangeProviderName", label: "환율수집처" },
+    { key: "lastSyncTimestamp", label: "최종동기화" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -82,9 +78,16 @@ export default function MultiCurrencyMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 통화환율 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="통화환율"
+            filename="공통_다중통화_환율마스터.csv"
+            store={currencyMasterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("CUR"), currencyCode: "", currencyName: "", baseExchangeRate: 0, rateChangePct: 0, exchangeProviderName: "", lastSyncTimestamp: "", status: "정상 동기화 (Active)" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

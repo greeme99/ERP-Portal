@@ -1,6 +1,7 @@
 // COM-022 법인및사업장마스터 (Company Legal Entity & Branch Master) — 본사 법인 및 전국 제조 공장/지점 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface CompanyBranchItem {
   id: string;
@@ -25,21 +26,16 @@ export default function CompanyBranchMaster() {
 
   const filtered = items.filter((i) => typeFilter === "전체" || i.companyName.includes(typeFilter));
 
-  const excel = () =>
-    downloadCsv(
-      "시스템_법인_사업장_마스터_대장.csv",
-      ["사업장코드", "법인/사업장명", "사업자등록번호", "대표자명", "업태종목", "소재지주소", "관할세무서", "상태"],
-      filtered.map((i) => [
-        i.companyCode,
-        i.companyName,
-        i.businessRegistrationNo,
-        i.representativeName,
-        i.businessCategoryType,
-        i.branchLocationAddress,
-        i.taxOfficeJurisdiction,
-        i.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "companyCode", label: "법인/사업장코드", required: true },
+    { key: "companyName", label: "법인/사업장명", required: true },
+    { key: "businessRegistrationNo", label: "사업자등록번호" },
+    { key: "representativeName", label: "대표자" },
+    { key: "businessCategoryType", label: "업태/종목" },
+    { key: "branchLocationAddress", label: "소재지" },
+    { key: "taxOfficeJurisdiction", label: "관할세무서" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -83,9 +79,16 @@ export default function CompanyBranchMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 사업장마스터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="사업장마스터"
+            filename="공통_법인사업장_마스터.csv"
+            store={companyBranchStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("CB"), companyCode: "", companyName: "", businessRegistrationNo: "", representativeName: "", businessCategoryType: "", branchLocationAddress: "", taxOfficeJurisdiction: "", status: "운영중 (Active)" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

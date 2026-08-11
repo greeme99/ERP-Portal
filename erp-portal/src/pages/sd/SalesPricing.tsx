@@ -1,9 +1,10 @@
 // SD-002 가격정책 관리 — 제품별 기본단가·수량할인(MOQ)·채널별 수수료 및 프로모션 가격 체계
 import { useState } from "react";
 import { materialStore } from "../../data/mock/master";
-import { useStore, downloadCsv } from "../../services/store";
+import { Entity, useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
-interface PricingPolicy {
+export interface PricingPolicy {
   id: string;
   materialCode: string;
   materialName: string;
@@ -15,12 +16,13 @@ interface PricingPolicy {
   status: "적용중" | "승인대기" | "만료";
 }
 
-export default function SalesPricing() {
-  const mats = useStore(materialStore);
-  const fgMats = mats.filter((m) => m.type === "완제품");
-
-  const [policies, setPolicies] = useState<PricingPolicy[]>(() =>
-    fgMats.map((m, idx) => ({
+// 완제품 기준 초기 가격정책 seed — 일괄 업로드 반영분을 유지하기 위해 EntityStore 로 지속화한다
+export const pricingPolicyStore = createStore(
+  "sd.pricing_policy",
+  materialStore
+    .getAll()
+    .filter((m) => m.type === "완제품")
+    .map((m, idx) => ({
       id: `POL-${1000 + idx}`,
       materialCode: m.code,
       materialName: m.name,
@@ -31,34 +33,30 @@ export default function SalesPricing() {
       channelAgencyDiscount: 10,
       status: "적용중",
     }))
-  );
+);
 
+export default function SalesPricing() {
+  const policies = useStore(pricingPolicyStore) as unknown as PricingPolicy[];
   const [filter, setFilter] = useState("전체");
 
   const handlePriceChange = (id: string, newPrice: number) => {
-    setPolicies((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, basePrice: newPrice } : p))
-    );
+    pricingPolicyStore.update(id, { basePrice: newPrice });
   };
 
   const filtered = policies.filter((p) => filter === "전체" || p.status === filter);
 
-  const excel = () =>
-    downloadCsv(
-      "영업_가격정책표.csv",
-      ["정책ID", "품목코드", "품목명", "기본단가(원)", "MOQ", "대량할인율(%)", "직판할인(%)", "대리점할인(%)", "상태"],
-      filtered.map((p) => [
-        p.id,
-        p.materialCode,
-        p.materialName,
-        p.basePrice,
-        p.minQty,
-        p.tierDiscountRate,
-        p.channelDirectDiscount,
-        p.channelAgencyDiscount,
-        p.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼 (매칭 키: 품목코드)
+  const massColumns: MassColumn[] = [
+    { key: "materialCode", label: "품목코드", required: true },
+    { key: "materialName", label: "품목명" },
+    { key: "basePrice", label: "기본단가(원)", type: "number" },
+    { key: "minQty", label: "MOQ", type: "number" },
+    { key: "tierDiscountRate", label: "대량할인율(%)", type: "number" },
+    { key: "channelDirectDiscount", label: "직판할인(%)", type: "number" },
+    { key: "channelAgencyDiscount", label: "대리점할인(%)", type: "number" },
+    { key: "status", label: "상태", type: "select", options: ["적용중", "승인대기", "만료"] },
+  ];
+
 
   return (
     <div className="space-y-3">
@@ -87,9 +85,16 @@ export default function SalesPricing() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 가격표 Excel 다운로드
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="가격정책"
+            filename="영업_가격정책표.csv"
+            store={pricingPolicyStore}
+            rows={filtered as unknown as Entity[]}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("POL"), materialCode: "", materialName: "", basePrice: 0, minQty: 0, tierDiscountRate: 0, channelDirectDiscount: 0, channelAgencyDiscount: 0, status: "적용중" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

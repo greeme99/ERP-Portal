@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { bomStore, materialStore } from "../../data/mock/master";
 import { Entity, useStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 interface TreeRowProps {
   parent: string;
@@ -71,6 +72,29 @@ export default function BomMaster() {
     if (confirm("이 BOM 라인을 삭제할까요? (하위 구조는 유지)")) bomStore.remove([id]);
   };
 
+  // 화면에 전개된 상위품목 기준 다단계 BOM 라인 (다운로드 대상 = 트리에 보이는 범위)
+  const explodedLines = (() => {
+    const acc: Entity[] = [];
+    const walk = (code: string, guard: Set<string>) => {
+      if (guard.has(code)) return; // 순환 BOM 방어
+      guard.add(code);
+      for (const b of boms.filter((x) => x.parent === code)) {
+        acc.push(b);
+        walk(String(b.child), guard);
+      }
+    };
+    walk(parent, new Set());
+    return acc;
+  })();
+
+  // 기준정보 일괄 다운로드/업로드 컬럼 (매칭 키: 모품목+자품목 복합키)
+  const massColumns: MassColumn[] = [
+    { key: "parent", label: "모품목코드", required: true },
+    { key: "child", label: "자품목코드", required: true },
+    { key: "qty", label: "소요량", type: "number", required: true },
+    { key: "uom", label: "단위", type: "select", options: ["EA", "KG", "M", "SET"] },
+  ];
+
   return (
     <div className="space-y-3">
       <div>
@@ -107,6 +131,16 @@ export default function BomMaster() {
             <input type="number" value={qty} min={0.001} onChange={(e) => setQty(Number(e.target.value))} className="block mt-1 px-2 py-1.5 rounded border border-line bg-surface text-[12px] text-ink w-20" />
           </label>
           <button onClick={addLine} className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold">＋ 추가</button>
+          <MassUpdateBar
+            title="BOM 마스터"
+            filename="기준정보_BOM_구성_대장.csv"
+            store={bomStore}
+            rows={explodedLines}
+            columns={massColumns}
+            keyOf={(r) => `${r.parent}|${r.child}`}
+            keyLabel="모품목+자품목"
+            newRow={() => ({ id: nextId("B"), parent: "", child: "", qty: 1, uom: "EA" })}
+          />
         </div>
       </div>
 

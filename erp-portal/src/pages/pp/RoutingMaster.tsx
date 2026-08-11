@@ -1,6 +1,7 @@
 // PP-005 공정/라우팅 (Routing & Work Center Master) — 제품 품목별 생산 공정 순서(Op Step)·작업장·표준 공수(Setup/Run time) 관리
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface RoutingStepItem {
   id: string;
@@ -29,23 +30,19 @@ export default function RoutingMaster() {
 
   const filtered = routings.filter((r) => matFilter === "전체" || r.materialCode === matFilter);
 
-  const excel = () =>
-    downloadCsv(
-      "생산_라우팅_공정마스터_대장.csv",
-      ["품목코드", "품목명", "공정순서", "공정명", "작업장코드", "작업장명", "셋업시간(분)", "개당생산시간(분)", "표준수율(%)", "상태"],
-      filtered.map((r) => [
-        r.materialCode,
-        r.materialName,
-        r.opSeq,
-        r.opName,
-        r.workCenterCode,
-        r.workCenterName,
-        r.setupTimeMin,
-        r.runTimeMinPerPc,
-        `${r.stdYieldPct}%`,
-        r.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "materialCode", label: "품목코드", required: true },
+    { key: "materialName", label: "품목명" },
+    { key: "opSeq", label: "공정순서", type: "number", required: true },
+    { key: "opName", label: "공정명", required: true },
+    { key: "workCenterCode", label: "작업장코드" },
+    { key: "workCenterName", label: "작업장명" },
+    { key: "setupTimeMin", label: "셋업시간(분)", type: "number" },
+    { key: "runTimeMinPerPc", label: "개당생산시간(분)", type: "number" },
+    { key: "stdYieldPct", label: "표준수율(%)", type: "number" },
+    { key: "status", label: "상태", type: "select", options: ["사용중", "개정중"] },
+  ];
 
   return (
     <div className="space-y-3">
@@ -93,9 +90,18 @@ export default function RoutingMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 라우팅 마스터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="라우팅 마스터"
+            filename="생산_라우팅_공정마스터_대장.csv"
+            store={routingMasterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("RT"), materialCode: "", materialName: "", opSeq: 10, opName: "", workCenterCode: "", workCenterName: "", setupTimeMin: 0, runTimeMinPerPc: 0, stdYieldPct: 100, status: "사용중" })}
+            keyOf={(r) => `${r.materialCode}|${r.opSeq}`}
+            keyLabel="품목코드+공정순서"
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">
