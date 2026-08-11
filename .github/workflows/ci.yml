@@ -26,13 +26,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
-          # cache: npm 은 쓰지 않는다. erp-portal/package-lock.json 이
-          # .gitignore 대상이라 캐시 키로 쓸 lockfile 이 저장소에 없다.
+          cache: npm
+          cache-dependency-path: erp-portal/package-lock.json
 
-      # lockfile 이 없어 npm ci 를 쓸 수 없다. 재현 가능한 빌드를 원하면
-      # .gitignore 에서 package-lock.json 을 제외하고 npm ci 로 바꾼다.
+      # lockfile 을 추적하므로 npm ci 로 재현 가능하게 설치한다.
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
