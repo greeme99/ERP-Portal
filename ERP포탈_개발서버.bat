@@ -35,7 +35,7 @@ echo.
 
 :RUN
 echo [2/2] Starting dev server - browser opens automatically.
-echo       URL: http://localhost:5173
+echo       URL: http://localhost:5180
 echo       Press Ctrl+C in this window to stop the server.
 echo.
 call npm run dev

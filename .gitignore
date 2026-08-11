@@ -3,3 +3,15 @@ CLAUDE.local.md
 .env
 .env.*
 !.env.example
+
+# Dependencies & Build Outputs
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+package-lock.json
+**/package-lock.json
+.vscode/
+.idea/
+*.log
+

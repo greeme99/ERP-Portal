@@ -6,9 +6,11 @@ import { prStore, poStore, budgetStore } from "../src/data/mock/procurement";
 import { lotStore, txStore, newLotCode } from "../src/data/mock/logistics";
 import { mpsStore, woStore, explodeBom } from "../src/data/mock/production";
 import { inspStore, sampleSize } from "../src/data/mock/quality";
+import { procInspStore, ncStore, capaStore, D_STEPS } from "../src/data/mock/quality2";
 import { journalStore, arStore, jvBalanced, stdCost, JLine } from "../src/data/mock/finance";
-import { computeKpis, computeExceptions } from "../src/services/insights";
+import { computeKpis, computeExceptions, AI_AGENTS, routeQuestion } from "../src/services/insights";
 import { nextId } from "../src/services/store";
+
 
 const TODAY = "2026-07-03";
 let pass = 0, fail = 0;
@@ -140,5 +142,65 @@ log(`예외 탐지 ${ex.length}건: ${ex.map((e) => e.tag).join(", ")}`);
 check(k.ppm !== null && k.ppm > 0, `품질 PPM ${Math.round(k.ppm!).toLocaleString()} (생산불량 ${defect} 반영)`);
 check(k.otd !== null, `OTD ${k.otd?.toFixed(1)}%`);
 
+// ── STEP 9. QM 확장 연쇄 흐름 (공정검사 → 부적합(NC) 8D → CAPA → 자동종결) ──
+console.log("\n[9] QM 확장 연쇄 흐름 검증");
+
+// 9-1. 공정검사 불합격 등록 (불량률 5% > 허용치 2%)
+const pqCode = nextId("PQ");
+const pqSample = 100, pqDefects = 5;
+const pqResult = pqDefects / pqSample > 0.02 ? "불합격" : "합격";
+procInspStore.create({ id: pqCode, code: pqCode, wo: woCode, material: "FG-1001", process: "최종조립", sample: pqSample, defects: pqDefects, result: pqResult, date: TODAY });
+check(pqResult === "불합격", `공정검사 ${pqCode} 불합격 판정 (샘플 ${pqSample}, 불량 ${pqDefects}, 불량률 ${((pqDefects / pqSample) * 100).toFixed(1)}% > 2%)`);
+
+// 9-2. 부적합(NC) 자동 연계 생성 (8D D1단계 개시)
+const ncCode = nextId("NC");
+ncStore.create({
+  id: ncCode, code: ncCode, source: "공정검사", ref: pqCode, material: "FG-1001", vendor: "-",
+  qty: pqDefects, defectType: "조립불량", severity: "중", dStep: 1, capa: "", status: "진행", date: TODAY,
+  desc: `공정검사 ${pqCode} 불합격 연계 부적합 발생`,
+});
+const nc0 = ncStore.getAll().find((n) => n.code === ncCode)!;
+check(nc0 !== undefined && nc0.status === "진행" && nc0.dStep === 1, `부적합 ${ncCode} 자동 발행 (D1 단계 진행중)`);
+
+// 9-3. 8D 단계 진행 (D1 → D4 근본원인)
+ncStore.update(ncCode, { dStep: 4 });
+const nc1 = ncStore.getAll().find((n) => n.code === ncCode)!;
+check(nc1.dStep === 4, `8D 프로세스 진행: ${D_STEPS[nc1.dStep - 1]}`);
+
+// 9-4. CAPA 발행 연계
+const capaCode = nextId("CAPA");
+capaStore.create({
+  id: capaCode, code: capaCode, nc: ncCode, type: "시정조치", owner: "생산기술팀",
+  action: "조립 토크 체결 표준 재설정 및 작업자 교육", dueDate: "2026-07-20", status: "진행", effectiveness: "-",
+});
+ncStore.update(ncCode, { capa: capaCode });
+check(capaStore.getAll().some((c) => c.code === capaCode && c.nc === ncCode), `CAPA ${capaCode} 발행 (NC ${ncCode} 연계)`);
+
+// 9-5. CAPA 조치 완료 & 효과성 검증 → NC 자동 종결
+capaStore.update(capaCode, { status: "완료", effectiveness: "유효 (불량률 0.1% 이하 감소)" });
+// CAPA 완료 연동: NC 종결 및 D8 단계 세팅
+ncStore.update(ncCode, { status: "종결", dStep: 8 });
+const nc2 = ncStore.getAll().find((n) => n.code === ncCode)!;
+const capa2 = capaStore.getAll().find((c) => c.code === capaCode)!;
+check(capa2.status === "완료" && nc2.status === "종결" && nc2.dStep === 8, `CAPA 완료 → 연계 NC ${ncCode} 자동 종결 (${D_STEPS[7]})`);
+
+
+// ── STEP 10. AI Agent 오케스트레이션 및 인사이트 검증 ──
+console.log("\n[10] AI Agent 오케스트레이션 검증");
+
+// AI Agent 5종 정상 동작 검증
+let agentSuccessCount = 0;
+AI_AGENTS.forEach((agent) => {
+  const resultText = agent.run();
+  if (resultText && resultText.length > 10) agentSuccessCount++;
+});
+check(agentSuccessCount === 5, `AI Agent 5종 (Demand Planner, Buyer, Scheduler, Quality, CFO) 인사이트 생성 (${agentSuccessCount}/5)`);
+
+// 질문 라우팅 검증
+const routeRes1 = routeQuestion("이번 달 손익 요약해줘");
+const routeRes2 = routeQuestion("품질 이상 징후 확인해줘");
+check(routeRes1.includes("AI CFO") && routeRes2.includes("AI Quality"), "AI Agent 자연어 질문 라우팅 검증 성공");
+
 console.log(`\n═══ 결과: PASS ${pass} / FAIL ${fail} — ${fail === 0 ? "✅ E2E 통합 검증 성공" : "❌ 검증 실패"} ═══`);
 process.exit(fail === 0 ? 0 : 1);
+

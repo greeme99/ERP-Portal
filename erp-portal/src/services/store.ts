@@ -192,7 +192,7 @@ export function useStore(store: EntityStore): Entity[] {
   return useSyncExternalStore(store.subscribe, store.getAll);
 }
 
-// CSV(Excel) 다운로드 유틸
+// CSV(Excel) 다운로드 유틸 (UTF-8 BOM \uFEFF 명확히 추가)
 export function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => {
     const text = String(v);
@@ -200,10 +200,11 @@ export function downloadCsv(filename: string, headers: string[], rows: (string |
     return `"${safe.replace(/"/g, '""')}"`;
   };
   const csv = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }
+

@@ -96,7 +96,7 @@ export default function Dashboard() {
         <div className="font-semibold mb-2">🔄 제조 End-to-End 프로세스 (구현 화면 링크)</div>
         <div className="flex flex-wrap gap-1 text-[11px]">
           {[
-            { s: "MPS", l: "/m/pp/pp-02" }, { s: "MRP", l: "/m/pp/pp-03" }, { s: "구매요청", l: "/m/mm/mm-04" },
+            { s: "수요예측", l: "/m/scm/scm-01" }, { s: "MPS", l: "/m/pp/pp-02" }, { s: "MRP", l: "/m/pp/pp-03" }, { s: "구매요청", l: "/m/mm/mm-04" },
             { s: "발주", l: "/m/mm/mm-05" }, { s: "입고", l: "/m/le/le-01" }, { s: "수입검사", l: "/m/qm/qm-02" },
             { s: "생산실행", l: "/m/pp/pp-06" }, { s: "SPC", l: "/m/qm/qm-06" }, { s: "수주(ATP)", l: "/m/sd/sd-04" },
             { s: "출고", l: "/m/le/le-02" }, { s: "전표", l: "/m/fi/fi-01" }, { s: "채권/채무", l: "/m/fi/fi-03" },
