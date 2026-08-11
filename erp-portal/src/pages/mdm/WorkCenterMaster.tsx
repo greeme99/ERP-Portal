@@ -1,6 +1,7 @@
 // MDM-005 작업장마스터 (Work Center Master) — 생산 라인별 공정 작업장·시간당 가공비 임율(Rate)·CAPA 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface WorkCenterMasterItem {
   id: string;
@@ -26,21 +27,17 @@ export default function WorkCenterMaster() {
 
   const filtered = items.filter((i) => catFilter === "전체" || i.processCategory === catFilter);
 
-  const excel = () =>
-    downloadCsv(
-      "기준정보_작업장_가공임율_마스터.csv",
-      ["작업장코드", "작업장명", "공정분류", "노무비임율(원/h)", "간접비임율(원/h)", "일가용CAPA(h)", "상태", "공장명"],
-      filtered.map((i) => [
-        i.workCenterCode,
-        i.workCenterName,
-        i.processCategory,
-        i.hourlyLaborRate,
-        i.hourlyOverheadRate,
-        i.dailyCapacityHours,
-        i.status,
-        i.plantName,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼 (매칭 키: 작업장코드)
+  const massColumns: MassColumn[] = [
+    { key: "workCenterCode", label: "작업장코드", required: true },
+    { key: "workCenterName", label: "작업장명", required: true },
+    { key: "processCategory", label: "공정분류", type: "select", options: ["사출/프레스", "자동 SMT", "메인 조립", "품질 에이징"] },
+    { key: "hourlyLaborRate", label: "노무비임율(원/h)", type: "number" },
+    { key: "hourlyOverheadRate", label: "간접비임율(원/h)", type: "number" },
+    { key: "dailyCapacityHours", label: "일가용CAPA(h)", type: "number" },
+    { key: "status", label: "상태", type: "select", options: ["사용중", "점검중"] },
+    { key: "plantName", label: "공장명" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -88,9 +85,19 @@ export default function WorkCenterMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 작업장마스터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="작업장마스터"
+            filename="기준정보_작업장_가공임율_마스터.csv"
+            store={workCenterMasterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({
+              id: nextId("WC"), workCenterCode: "", workCenterName: "", processCategory: "메인 조립",
+              hourlyLaborRate: 0, hourlyOverheadRate: 0, dailyCapacityHours: 0, status: "사용중", plantName: "",
+            })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

@@ -1,6 +1,7 @@
 // CO-002 코스트센터마스터 (Cost Center Master) — 부서·조직별 발생 비용 집계 코스트센터(Cost Center) 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface CostCenterItem {
   id: string;
@@ -27,20 +28,16 @@ export default function CostCenterMaster() {
 
   const totalBudget = filtered.reduce((acc, i) => acc + i.allocatedBudget, 0);
 
-  const excel = () =>
-    downloadCsv(
-      "관리회계_코스트센터_마스터_대장.csv",
-      ["코스트센터코드", "코스트센터명", "부서명", "책임자", "CC분류", "할당예산(원)", "상태"],
-      filtered.map((i) => [
-        i.costCenterCode,
-        i.costCenterName,
-        i.deptName,
-        i.managerName,
-        i.ccCategory,
-        i.allocatedBudget,
-        i.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "costCenterCode", label: "코스트센터코드", required: true },
+    { key: "costCenterName", label: "코스트센터명", required: true },
+    { key: "deptName", label: "부서명" },
+    { key: "managerName", label: "책임자" },
+    { key: "ccCategory", label: "센터분류", type: "select", options: ["생산직접 CC", "생산간접 CC", "관리/지원 CC", "R&D연구 CC"] },
+    { key: "allocatedBudget", label: "할당예산(원)", type: "number" },
+    { key: "status", label: "상태", type: "select", options: ["사용중", "폐지"] },
+  ];
 
   return (
     <div className="space-y-3">
@@ -86,9 +83,16 @@ export default function CostCenterMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 코스트센터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="코스트센터"
+            filename="관리회계_코스트센터_마스터.csv"
+            store={costCenterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("CC"), costCenterCode: "", costCenterName: "", deptName: "", managerName: "", ccCategory: "관리/지원 CC", allocatedBudget: 0, status: "사용중" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

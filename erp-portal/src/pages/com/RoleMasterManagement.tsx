@@ -1,6 +1,7 @@
 // COM-005 권한그룹마스터 (Role Master Management) — 전사 사용자 역할(Role) 및 메뉴별 읽기/쓰기 접근 권한 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface RoleMasterItem {
   id: string;
@@ -26,19 +27,15 @@ export default function RoleMasterManagement() {
 
   const totalUsers = filtered.reduce((acc, i) => acc + i.assignedUserCount, 0);
 
-  const excel = () =>
-    downloadCsv(
-      "시스템_권한그룹_역할_마스터_대장.csv",
-      ["역할코드", "역할명", "접근모듈범위", "권한레벨", "할당사용자수", "설명"],
-      filtered.map((i) => [
-        i.roleCode,
-        i.roleName,
-        i.moduleScope,
-        i.permissionLevel,
-        i.assignedUserCount,
-        i.description,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "roleCode", label: "역할코드", required: true },
+    { key: "roleName", label: "역할명", required: true },
+    { key: "moduleScope", label: "접근모듈" },
+    { key: "permissionLevel", label: "권한수준", type: "select", options: ["전권 관리자 (Full Access)", "조회 및 승인 (Write/Approve)", "조회 전용 (Read-Only)"] },
+    { key: "assignedUserCount", label: "할당사용자수", type: "number" },
+    { key: "description", label: "설명" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -82,9 +79,16 @@ export default function RoleMasterManagement() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 권한그룹 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="권한그룹"
+            filename="공통_역할권한_마스터.csv"
+            store={roleMasterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("RL"), roleCode: "", roleName: "", moduleScope: "", permissionLevel: "조회 전용 (Read-Only)", assignedUserCount: 0, description: "" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

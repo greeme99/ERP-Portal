@@ -1,6 +1,7 @@
 // LE-009 로케이션관리 (Warehouse Location & Storage Bin Management) — 창고 구역·로케이션 랙(Rack/Bin) 적재 CAPA 및 재고 위치 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface LocationBinItem {
   id: string;
@@ -28,21 +29,14 @@ export default function WarehouseLocationManagement() {
 
   const avgOccupancy = filtered.reduce((acc, i) => acc + i.occupancyRatePct, 0) / (filtered.length || 1);
 
-  const excel = () =>
-    downloadCsv(
-      "물류_창고_로케이션_랙_적재_대장.csv",
-      ["로케이션코드", "창고명", "구역분류", "최대적재CAPA(EA)", "현재적재량(EA)", "랙점유율(%)", "온습도관리조건", "상태"],
-      filtered.map((i) => [
-        i.locationCode,
-        i.warehouseName,
-        i.zoneCategory,
-        i.maxCapacityQty,
-        i.currentStockQty,
-        `${i.occupancyRatePct.toFixed(1)}%`,
-        i.tempHumidityCond,
-        i.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "locationCode", label: "로케이션코드", required: true },
+    { key: "warehouseName", label: "창고명", required: true },
+    { key: "zoneCategory", label: "구역분류", type: "select", options: ["A구역 (원자재랙)", "B구역 (반제품랙)", "C구역 (완제품랙)", "D구역 (위험물/시품)"] },
+    { key: "maxCapacityQty", label: "최대적재수량", type: "number" },
+    { key: "tempHumidityCond", label: "온습도조건" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -88,9 +82,16 @@ export default function WarehouseLocationManagement() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 로케이션 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="로케이션"
+            filename="물류_창고로케이션_마스터.csv"
+            store={locationBinStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("LOC"), locationCode: "", warehouseName: "", zoneCategory: "A구역 (원자재랙)", maxCapacityQty: 0, currentStockQty: 0, occupancyRatePct: 0, tempHumidityCond: "", status: "공간 여유" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

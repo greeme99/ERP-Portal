@@ -1,6 +1,7 @@
 // COM-006 공통코드 (Standard System Code Master) — 전사 시스템 공통 분류 코드그룹 및 상세 코드 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface CommonCodeItem {
   id: string;
@@ -26,20 +27,16 @@ export default function CommonCodeMaster() {
 
   const filtered = items.filter((i) => groupFilter === "전체" || i.codeGroupId === groupFilter);
 
-  const excel = () =>
-    downloadCsv(
-      "시스템_표준_공통코드_마스터_대장.csv",
-      ["코드그룹ID", "코드그룹명", "세부코드값", "세부코드명", "정렬순서", "사용여부", "비고설명"],
-      filtered.map((i) => [
-        i.codeGroupId,
-        i.codeGroupName,
-        i.codeValue,
-        i.codeName,
-        i.sortOrder,
-        i.useYn,
-        i.description,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "codeGroupId", label: "코드그룹ID", required: true },
+    { key: "codeGroupName", label: "코드그룹명" },
+    { key: "codeValue", label: "코드값", required: true },
+    { key: "codeName", label: "코드명", required: true },
+    { key: "sortOrder", label: "정렬순서", type: "number" },
+    { key: "useYn", label: "사용여부", type: "select", options: ["Y", "N"] },
+    { key: "description", label: "설명" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -83,9 +80,18 @@ export default function CommonCodeMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 공통코드 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="공통코드"
+            filename="공통_공통코드_마스터.csv"
+            store={commonCodeStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("CD"), codeGroupId: "", codeGroupName: "", codeValue: "", codeName: "", sortOrder: 0, useYn: "Y", description: "" })}
+            keyOf={(r) => `${r.codeGroupId}|${r.codeValue}`}
+            keyLabel="코드그룹ID+코드값"
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

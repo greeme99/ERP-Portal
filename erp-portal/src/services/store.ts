@@ -208,3 +208,49 @@ export function downloadCsv(filename: string, headers: string[], rows: (string |
   URL.revokeObjectURL(a.href);
 }
 
+// CSV \uD55C \uC904\uC744 \uCEEC\uB7FC\uC73C\uB85C \uBD84\uD560 (\uAD6C\uBD84\uC790 \uC790\uB3D9 \uAC10\uC9C0, \uB530\uC634\uD45C \uC548 \uCF64\uB9C8 \uBCF4\uC874 \u2014 \uC608: "1,228")
+function parseCsvLine(line: string): string[] {
+  const delimiter = line.includes("\t") ? "\t" : line.includes(";") ? ";" : ",";
+  const result: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      // "" \uB294 \uB530\uC634\uD45C \uB9AC\uD130\uB7F4 (downloadCsv \uC758 \uC774\uC2A4\uCF00\uC774\uD504\uC640 \uB300\uCE6D)
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (char === delimiter && !inQuotes) {
+      result.push(cur.trim());
+      cur = "";
+    } else {
+      cur += char;
+    }
+  }
+  result.push(cur.trim());
+  // downloadCsv \uAC00 CSV \uC778\uC81D\uC158 \uBC29\uC9C0\uB85C \uBD99\uC778 \uC120\uD589 \uC791\uC740\uB530\uC634\uD45C\uB97C \uB418\uB3CC\uB9B0\uB2E4
+  return result.map((c) => c.replace(/^'(?=[=+@\t\r-])/, ""));
+}
+
+// \uC5C5\uB85C\uB4DC\uB41C CSV/TSV \uB97C 2\uCC28\uC6D0 \uBC30\uC5F4\uB85C \uD30C\uC2F1 (UTF-8 BOM \uC81C\uAC70, \uD55C\uAE00 \uAE68\uC9D0 \uC2DC EUC-KR/CP949 \uC7AC\uC2DC\uB3C4)
+export function readCsvFile(file: File): Promise<string[][]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("\uD30C\uC77C\uC744 \uC77D\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4."));
+    reader.onload = (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (!buffer) return reject(new Error("\uD30C\uC77C\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4."));
+      let text = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
+      if (text.includes("\uFFFD")) {
+        try {
+          text = new TextDecoder("euc-kr").decode(buffer).replace(/^\uFEFF/, "");
+        } catch {
+          // \uBE0C\uB77C\uC6B0\uC800\uAC00 euc-kr \uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC73C\uBA74 UTF-8 \uACB0\uACFC\uB97C \uADF8\uB300\uB85C \uC0AC\uC6A9\uD55C\uB2E4
+        }
+      }
+      resolve(text.split(/\r?\n/).filter((l) => l.trim() !== "").map(parseCsvLine));
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+

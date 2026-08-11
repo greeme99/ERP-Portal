@@ -1,6 +1,7 @@
 // 마스터 CRUD 표준 화면 — 설정(fields) 기반으로 그리드+폼 자동 구성
 import { ReactNode, useMemo, useState } from "react";
-import { Entity, EntityStore, useStore, downloadCsv } from "../../services/store";
+import { Entity, EntityStore, useStore } from "../../services/store";
+import MassUpdateBar from "./MassUpdateBar";
 
 export interface FieldDef {
   key: string;
@@ -20,9 +21,10 @@ interface Props {
   fields: FieldDef[];
   newRow: () => Entity;
   searchKeys?: string[];
+  keyField?: string; // 일괄 업로드 매칭 키 (기본: 첫 번째 필드 = 코드)
 }
 
-export default function MasterCrudPage({ moduleLabel, title, store, fields, newRow, searchKeys }: Props) {
+export default function MasterCrudPage({ moduleLabel, title, store, fields, newRow, searchKeys, keyField }: Props) {
   const rows = useStore(store);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -63,12 +65,8 @@ export default function MasterCrudPage({ moduleLabel, title, store, fields, newR
     }
   };
 
-  const excel = () =>
-    downloadCsv(
-      `${title}.csv`,
-      fields.map((f) => f.label),
-      filtered.map((r) => fields.map((f) => r[f.key] ?? ""))
-    );
+  // 일괄 업로드 대상 컬럼 — 계산 컬럼(hideInForm)은 원본 값이 없으므로 제외해 그대로 재업로드 가능하게 한다
+  const ioFields = useMemo(() => fields.filter((f) => !f.hideInForm), [fields]);
 
   return (
     <div className="space-y-3">
@@ -94,7 +92,14 @@ export default function MasterCrudPage({ moduleLabel, title, store, fields, newR
             ＋ 신규
           </button>
           <button onClick={remove} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">🗑 삭제</button>
-          <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">📥 Excel</button>
+          <MassUpdateBar
+            title={title}
+            store={store}
+            rows={filtered}
+            columns={ioFields}
+            newRow={newRow}
+            keyKey={keyField}
+          />
         </div>
       </div>
 

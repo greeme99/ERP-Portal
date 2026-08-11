@@ -1,6 +1,7 @@
 // CO-003 손익센터마스터 (Profit Center Master) — 사업부별 독자 손익(매출·원가·영업이익) 집계 손익센터 마스터
 import { useState } from "react";
-import { useStore, downloadCsv, createStore } from "../../services/store";
+import { useStore, createStore, nextId } from "../../services/store";
+import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
 export interface ProfitCenterItem {
   id: string;
@@ -27,20 +28,16 @@ export default function ProfitCenterMaster() {
 
   const totalSalesTarget = filtered.reduce((acc, i) => acc + i.targetSalesAmount, 0);
 
-  const excel = () =>
-    downloadCsv(
-      "관리회계_손익센터_마스터_대장.csv",
-      ["손익센터코드", "손익센터명", "사업본부명", "사업부장", "목표매출액(원)", "목표이익률(%)", "상태"],
-      filtered.map((i) => [
-        i.profitCenterCode,
-        i.profitCenterName,
-        i.businessUnit,
-        i.buHeadName,
-        i.targetSalesAmount,
-        `${i.targetMarginRatePct}%`,
-        i.status,
-      ])
-    );
+  // 기준정보 일괄 다운로드/업로드 컬럼
+  const massColumns: MassColumn[] = [
+    { key: "profitCenterCode", label: "손익센터코드", required: true },
+    { key: "profitCenterName", label: "손익센터명", required: true },
+    { key: "businessUnit", label: "사업부명" },
+    { key: "buHeadName", label: "사업부장" },
+    { key: "targetSalesAmount", label: "목표매출(원)", type: "number" },
+    { key: "targetMarginRatePct", label: "목표영업이익률(%)", type: "number" },
+    { key: "status", label: "상태", type: "select", options: ["운영중", "신설예정"] },
+  ];
 
   return (
     <div className="space-y-3">
@@ -86,9 +83,16 @@ export default function ProfitCenterMaster() {
             </button>
           ))}
         </div>
-        <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">
-          📥 손익센터 Excel
-        </button>
+        <div className="flex gap-1">
+          <MassUpdateBar
+            title="손익센터"
+            filename="관리회계_손익센터_마스터.csv"
+            store={profitCenterStore}
+            rows={filtered}
+            columns={massColumns}
+            newRow={() => ({ id: nextId("PC"), profitCenterCode: "", profitCenterName: "", businessUnit: "", buHeadName: "", targetSalesAmount: 0, targetMarginRatePct: 0, status: "운영중" })}
+          />
+        </div>
       </div>
 
       <div className="bg-panel border border-line rounded-lg overflow-x-auto">

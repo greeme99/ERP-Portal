@@ -9,7 +9,7 @@ import E2eDemoGuideWidget from "./E2eDemoGuideWidget";
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copilotOpen, setCopilotOpen] = useState(true);
-  const [demoPlaybookOpen, setDemoPlaybookOpen] = useState(true);
+  const [demoPlaybookOpen, setDemoPlaybookOpen] = useState(false);
 
   return (
     <div className="h-full flex flex-col relative">
