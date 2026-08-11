@@ -15,6 +15,12 @@ import BomMaster from "./pages/mdm/BomMaster";
 import PartnerMaster from "./pages/mdm/PartnerMaster";
 import WorkCenterMaster from "./pages/mdm/WorkCenterMaster";
 import WarehouseMaster from "./pages/mdm/WarehouseMaster";
+import SupplierMaster from "./pages/mdm/SupplierMaster";
+import PlantMaster from "./pages/mdm/PlantMaster";
+import EquipmentMaster from "./pages/mdm/EquipmentMaster";
+import GlAccountMaster from "./pages/mdm/GlAccountMaster";
+import FxRateMaster from "./pages/mdm/FxRateMaster";
+import OrgMaster from "./pages/mdm/OrgMaster";
 // SD
 import CustomerMaster from "./pages/sd/CustomerMaster";
 import QuotationPage from "./pages/sd/QuotationPage";
@@ -192,8 +198,16 @@ export default function App() {
         <Route path="/m/mdm/mdm-01" element={<MaterialMaster />} />
         <Route path="/m/mdm/mdm-02" element={<BomMaster />} />
         <Route path="/m/mdm/mdm-03" element={<PartnerMaster />} />
+        <Route path="/m/mdm/mdm-04" element={<SupplierMaster />} />
         <Route path="/m/mdm/mdm-05" element={<WorkCenterMaster />} />
         <Route path="/m/mdm/mdm-06" element={<WarehouseMaster />} />
+        <Route path="/m/mdm/mdm-07" element={<PlantMaster />} />
+        <Route path="/m/mdm/mdm-08" element={<EquipmentMaster />} />
+        <Route path="/m/mdm/mdm-09" element={<GlAccountMaster />} />
+        <Route path="/m/mdm/mdm-10" element={<FxRateMaster />} />
+        <Route path="/m/mdm/mdm-11" element={<OrgMaster />} />
+        {/* MDM-12 공통코드 관리 — COM-06 시스템 코드 관리와 동일 대상이라 화면을 재사용한다 */}
+        <Route path="/m/mdm/mdm-12" element={<CommonCodeMaster />} />
         <Route path="/m/sd/sd-01" element={<CustomerMaster />} />
         <Route path="/m/sd/sd-02" element={<SalesPricing />} />
         <Route path="/m/sd/sd-03" element={<QuotationPage />} />
