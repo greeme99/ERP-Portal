@@ -50,6 +50,9 @@ jobs:
       - name: E2E — 5대 대표 시나리오
         run: npx tsx scripts/run-5-scenarios.ts
 
+      - name: Print — 인쇄 서식 금액 (부가세·차대 평형)
+        run: npx tsx scripts/print-forms-scenario.ts
+
       - name: Forecast — 파라미터 튜닝 엔진 (정규화·백테스트·최적화)
         run: npx tsx scripts/forecast-tuning-scenario.ts
 

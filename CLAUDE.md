@@ -49,6 +49,9 @@ npx.cmd tsx scripts/store-persistence-scenario.ts
 npx.cmd tsx scripts/e2e-scenario.ts
 npx.cmd tsx scripts/run-5-scenarios.ts
 
+# print (인쇄 서식 금액)
+npx.cmd tsx scripts/print-forms-scenario.ts
+
 # forecast (예측 파라미터 튜닝 엔진)
 npx.cmd tsx scripts/forecast-tuning-scenario.ts
 

@@ -1,14 +1,18 @@
 // FI-002 매출채권(AR) — 출하완료 SO 동기화, Aging, 수금 → 여신 차감
+import { useState } from "react";
 import { customerStore } from "../../data/mock/master";
 import { salesOrderStore, docTotal, DocLine } from "../../data/mock/sales";
 import { arStore } from "../../data/mock/finance";
-import { useStore, nextId, downloadCsv } from "../../services/store";
+import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
+import { splitVat, VAT_RATE } from "../../services/documentMath";
 
 const TODAY = "2026-07-03";
 const daysBetween = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
 export default function ArPage() {
   const ars = useStore(arStore);
+  const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
   const sos = useStore(salesOrderStore);
   const customers = useStore(customerStore);
 
@@ -36,6 +40,48 @@ export default function ArPage() {
   const open = ars.filter((a) => a.status === "미수");
   const totalOpen = open.reduce((s, a) => s + a.amount, 0);
   const overdue = open.filter((a) => a.dueDate < TODAY);
+
+  // 매출전표 서식 — 차변 매출채권 / 대변 제품매출·부가세로 분개한다
+  const buildVoucherDoc = (a: Entity): PrintDoc => {
+    const { supply, vat, total } = splitVat(Number(a.amount));
+    const late = a.status === "미수" && a.dueDate < TODAY;
+    return {
+      title: "매 출 전 표",
+      docNo: String(a.code),
+      issuedAt: String(a.invoiceDate ?? TODAY),
+      counterpartyLabel: "거래처",
+      counterparty: [
+        { label: "고객코드", value: String(a.customer) },
+        { label: "고객명", value: custName(String(a.customer)) },
+        { label: "연계 수주", value: String(a.ref ?? "-") },
+      ],
+      meta: [
+        { label: "발행일", value: String(a.invoiceDate ?? "-") },
+        { label: "만기일", value: String(a.dueDate ?? "-") },
+        { label: "회수상태", value: String(a.status ?? "-") },
+        { label: "연체여부", value: late ? `연체 ${daysBetween(String(a.dueDate), TODAY)}일` : "정상" },
+      ],
+      columns: [
+        { key: "account", label: "계정과목" },
+        { key: "drcr", label: "차대", align: "center" },
+        { key: "debit", label: "차변", align: "right" },
+        { key: "credit", label: "대변", align: "right" },
+        { key: "note", label: "적요" },
+      ],
+      rows: [
+        { account: "1130 매출채권", drcr: "차변", debit: total, credit: "", note: `${custName(String(a.customer))} 외상매출` },
+        { account: "4010 제품매출", drcr: "대변", debit: "", credit: supply, note: "제품 매출액" },
+        { account: "2550 부가세예수금", drcr: "대변", debit: "", credit: vat, note: `부가세 ${VAT_RATE * 100}%` },
+      ],
+      totals: [
+        { label: "차변 합계", value: `${total.toLocaleString()} 원` },
+        { label: "대변 합계", value: `${(supply + vat).toLocaleString()} 원` },
+        { label: "차대 평형", value: total === supply + vat ? "일치" : "불일치" },
+      ],
+      note: ["· 본 전표는 매출채권 발생 시점의 분개를 표시합니다.", "· 수금 시 별도 입금전표가 발행됩니다."].join(String.fromCharCode(10)),
+      signatures: ["작성", "검토", "승인"],
+    };
+  };
 
   const excel = () =>
     downloadCsv("매출채권.csv", ["채권번호", "참조", "고객", "금액", "청구일", "만기일", "경과일", "상태"],
@@ -110,9 +156,18 @@ export default function ArPage() {
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    {a.status === "미수" && (
-                      <button onClick={() => collect(a)} className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-semibold">💰 수금</button>
-                    )}
+                    <div className="flex gap-1">
+                      {a.status === "미수" && (
+                        <button onClick={() => collect(a)} className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-semibold">💰 수금</button>
+                      )}
+                      <button
+                        onClick={() => setPrintDoc(buildVoucherDoc(a))}
+                        title="매출전표를 인쇄합니다. 인쇄 대화상자에서 PDF로 저장할 수 있습니다."
+                        className="px-2 py-0.5 rounded border border-line text-[10px] font-semibold hover:bg-accent-soft"
+                      >
+                        🖨 전표
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -120,6 +175,7 @@ export default function ArPage() {
           </tbody>
         </table>
       </div>
+      <PrintableDocument doc={printDoc} onDone={() => setPrintDoc(null)} />
     </div>
   );
 }

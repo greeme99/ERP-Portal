@@ -1,6 +1,7 @@
 // QM-009 8D Report — 부적합 문제해결 8D 기법(원인분석·시정조치·재발방지) 관리
 import { useState } from "react";
 import { useStore, downloadCsv, createStore } from "../../services/store";
+import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 
 export interface EightDItem {
   id: string;
@@ -24,9 +25,40 @@ export const eightDStore = createStore("qm.eight_d", [
 
 export default function EightDReport() {
   const reports = useStore(eightDStore) as EightDItem[];
+  const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
   const [statusFilter, setStatusFilter] = useState("전체");
 
   const filtered = reports.filter((r) => statusFilter === "전체" || r.status === statusFilter);
+
+  // 8D 리포트 서식 — D1~D8 단계를 서술형 섹션으로 출력한다
+  const buildEightDDoc = (r: EightDItem): PrintDoc => ({
+    title: "8D 품질문제 해결 보고서",
+    docNo: r.reportNo,
+    issuedAt: r.createdAt,
+    counterpartyLabel: "고객 / 대상 품목",
+    counterparty: [
+      { label: "고객명", value: r.customerName },
+      { label: "품목코드", value: r.materialCode },
+      { label: "품목명", value: r.materialName },
+    ],
+    meta: [
+      { label: "리포트번호", value: r.reportNo },
+      { label: "작성일", value: r.createdAt },
+      { label: "진행단계", value: r.status.replace("_", " ") },
+      { label: "완료여부", value: r.status === "D8_완료" ? "완료" : "진행중" },
+    ],
+    sections: [
+      { heading: "D1. 팀 구성 (Team)", body: `품질보증본부 주관 · ${r.customerName} 대응 TF` },
+      { heading: "D2. 문제 정의 (Problem Description)", body: r.title },
+      { heading: "D3. 임시 조치 (Interim Containment)", body: "해당 LOT 출하 보류 및 재고 전수 선별" },
+      { heading: "D4. 근본 원인 (Root Cause)", body: r.rootCause },
+      { heading: "D5. 시정 조치 (Corrective Action)", body: r.correctiveAction },
+      { heading: "D6. 재발 방지책 (Preventive Action)", body: r.preventiveAction },
+      { heading: "D7. 표준화 (Standardization)", body: "검사기준서(QM-001) 및 관리계획서 개정 반영" },
+      { heading: "D8. 종결 및 팀 인정 (Closure)", body: r.status === "D8_완료" ? "효과 검증 완료 후 종결" : "효과 검증 진행 중" },
+    ],
+    signatures: ["작성", "품질책임", "승인"],
+  });
 
   const excel = () =>
     downloadCsv(
@@ -105,6 +137,7 @@ export default function EightDReport() {
               <th className="px-3 py-2">재발 방지책 (D6)</th>
               <th className="px-3 py-2">진행 단계</th>
               <th className="px-3 py-2">작성일자</th>
+              <th className="px-3 py-2">서식</th>
             </tr>
           </thead>
           <tbody>
@@ -124,11 +157,21 @@ export default function EightDReport() {
                   </span>
                 </td>
                 <td className="px-3 py-2 font-mono text-sub">{r.createdAt}</td>
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => setPrintDoc(buildEightDDoc(r))}
+                    title="8D 리포트를 인쇄합니다. 인쇄 대화상자에서 PDF로 저장할 수 있습니다."
+                    className="px-2 py-0.5 rounded border border-line text-[10px] font-semibold hover:bg-accent-soft"
+                  >
+                    🖨 8D
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <PrintableDocument doc={printDoc} onDone={() => setPrintDoc(null)} />
     </div>
   );
 }
