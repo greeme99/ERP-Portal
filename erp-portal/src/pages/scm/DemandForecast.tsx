@@ -5,7 +5,18 @@ import { materialStore } from "../../data/mock/master";
 import { mpsStore, MpsDailyItem } from "../../data/mock/production";
 import { forecastStore, mape, accuracy, CURRENT_WEEK, WEEK_BUCKETS, ForecastItem } from "../../data/mock/scm";
 import { useStore, downloadCsv } from "../../services/store";
-import { runAiStatisticalForecastEngine, AiForecastResult } from "../../services/aiStatsModel";
+import {
+  runAiStatisticalForecastEngine,
+  backtestForecast,
+  optimizeSmoothing,
+  normalizeParams,
+  DEFAULT_PARAMS,
+  AiForecastResult,
+  ForecastParams,
+} from "../../services/aiStatsModel";
+
+// 백테스트 검증 구간 길이 — 이력 뒤 이만큼을 떼어 예측 오차를 본다
+const VALIDATE_WEEKS = 4;
 
 export default function DemandForecast() {
   const rows = useStore(forecastStore) as ForecastItem[];
@@ -15,6 +26,8 @@ export default function DemandForecast() {
   const [activeTab, setActiveTab] = useState<"all" | "manual" | "ai">("all");
   const [selectedFg, setSelectedFg] = useState<string>("FG-1001");
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  // 튜닝 패널 파라미터 — 기본값은 기존 동작과 동일하다
+  const [params, setParams] = useState<ForecastParams>(DEFAULT_PARAMS);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fgs = [...new Set(rows.map((r) => r.material))];
@@ -34,8 +47,25 @@ export default function DemandForecast() {
     .filter((r) => r.material === selectedFg && r.weekSeq <= 16)
     .map((r) => (r.actual > 0 ? r.actual : r.forecast));
 
-  // AI 통계예측 엔진 연동 실행 (17~24주차)
-  const aiResults: AiForecastResult[] = runAiStatisticalForecastEngine(fgHistory, 17, 8);
+  // AI 통계예측 엔진 연동 실행 (17~24주차) — 튜닝 패널의 파라미터를 그대로 주입한다
+  const aiResults: AiForecastResult[] = runAiStatisticalForecastEngine(fgHistory, 17, 8, params);
+
+  // 파라미터 우열 판정 근거 — 이력 뒤 4주를 떼어 예측하고 오차를 본다
+  const backtest = backtestForecast(fgHistory, params, VALIDATE_WEEKS);
+  const baseline = backtestForecast(fgHistory, DEFAULT_PARAMS, VALIDATE_WEEKS);
+  const effective = normalizeParams(params);
+  const isDefault = JSON.stringify(effective) === JSON.stringify(normalizeParams(DEFAULT_PARAMS));
+
+  const setParam = (key: keyof ForecastParams, value: number) => setParams((prev) => ({ ...prev, [key]: value }));
+
+  const runOptimize = () => {
+    const best = optimizeSmoothing(fgHistory, params, VALIDATE_WEEKS);
+    if (!best) {
+      alert("이력이 부족해 최적화를 실행할 수 없습니다.");
+      return;
+    }
+    setParams((prev) => ({ ...prev, alpha: best.alpha, beta: best.beta }));
+  };
 
   // AI 통계예측 결과 17~24주차에 일괄 적용
   const handleApplyAiForecast = () => {
@@ -48,7 +78,20 @@ export default function DemandForecast() {
         });
       }
     });
-    alert(`[${selectedFg}] 17~24주차 AI 통계예측 앙상블 결과 (${aiResults.map(r => r.ensembleAi).join(", ")}) 적용 완료!`);
+    const mapeText = backtest.mapePct === null ? "산출 불가" : `${backtest.mapePct.toFixed(2)}%`;
+    alert(
+      `[${selectedFg}] 17~24주차 AI 통계예측 적용 완료
+
+` +
+        `· 파라미터: α=${effective.alpha.toFixed(2)}, β=${effective.beta.toFixed(2)}, MA=${effective.maWindow}주
+` +
+        `· 앙상블 가중: Holt ${(effective.wHoltWinters * 100).toFixed(0)}% / 이동평균 ${(effective.wMovingAverage * 100).toFixed(0)}% / 선형회귀 ${(effective.wLinearRegression * 100).toFixed(0)}%
+` +
+        `· 검증 ${backtest.validateCount}주 MAPE: ${mapeText}
+
+` +
+        `적용값: ${aiResults.map((r) => r.ensembleAi).join(", ")}`
+    );
     setAiModalOpen(false);
   };
 
@@ -453,7 +496,7 @@ export default function DemandForecast() {
                   🤖 AI 시계열 통계예측 모델 상세 분석 (17~24주차)
                 </h3>
                 <p className="text-xs text-sub mt-0.5">
-                  Holt-Winters 지수평균 추세 모델, 이동평균, 선형회귀 앙상블 및 95% 신뢰구간 산출
+                  Holt 선형추세 지수평활(α·β), 이동평균, 선형회귀 앙상블 — 파라미터를 조정하면 백테스트 오차가 즉시 갱신된다
                 </p>
               </div>
               <button onClick={() => setAiModalOpen(false)} className="text-sub hover:text-main text-lg">✕</button>
@@ -476,21 +519,125 @@ export default function DemandForecast() {
                 ))}
               </div>
 
+              {/* 파라미터 튜닝 패널 — 슬라이더를 움직이면 아래 표와 백테스트가 즉시 갱신된다 */}
+              <div className="border border-line rounded-lg overflow-hidden">
+                <div className="p-2.5 bg-surface font-bold text-main border-b border-line flex flex-wrap justify-between items-center gap-2">
+                  <span>🎛 평활 계수 · 앙상블 가중 튜닝</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={runOptimize}
+                      title={`검증 구간 ${VALIDATE_WEEKS}주 MAPE 가 가장 낮은 α·β 를 격자 탐색으로 찾는다`}
+                      className="px-2.5 py-1 rounded bg-purple-600 text-white font-bold text-[11px] hover:bg-purple-700"
+                    >
+                      ⚡ α·β 자동 최적화
+                    </button>
+                    <button
+                      onClick={() => setParams(DEFAULT_PARAMS)}
+                      disabled={isDefault}
+                      className="px-2.5 py-1 rounded border border-line font-bold text-[11px] text-sub hover:bg-accent-soft disabled:opacity-40"
+                    >
+                      ↺ 기본값
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2.5">
+                  {([
+                    { key: "alpha", label: "α — level 평활", min: 0.01, max: 1, step: 0.01, hint: "높으면 최근값에 민감" },
+                    { key: "beta", label: "β — trend 평활", min: 0, max: 1, step: 0.01, hint: "높으면 추세 변화에 민감" },
+                    { key: "wHoltWinters", label: "가중 — Holt 추세", min: 0, max: 1, step: 0.05, hint: "" },
+                    { key: "wMovingAverage", label: "가중 — 이동평균", min: 0, max: 1, step: 0.05, hint: "" },
+                    { key: "wLinearRegression", label: "가중 — 선형회귀", min: 0, max: 1, step: 0.05, hint: "" },
+                    { key: "maWindow", label: "이동평균 창 (주)", min: 1, max: 16, step: 1, hint: "" },
+                    { key: "ciPct", label: "신뢰구간 폭 (±%)", min: 0, max: 30, step: 0.5, hint: "" },
+                  ] as const).map((f) => (
+                    <label key={f.key} className="block">
+                      <span className="flex justify-between items-baseline text-[11px]">
+                        <span className="font-semibold text-main">{f.label}</span>
+                        <span className="font-mono text-purple-600 font-bold">
+                          {f.key === "maWindow" ? params[f.key] : Number(params[f.key]).toFixed(2)}
+                          {f.key.startsWith("w") && (
+                            <span className="text-sub font-normal"> → {(effective[f.key] * 100).toFixed(0)}%</span>
+                          )}
+                        </span>
+                      </span>
+                      <input
+                        type="range"
+                        min={f.min}
+                        max={f.max}
+                        step={f.step}
+                        value={params[f.key]}
+                        onChange={(e) => setParam(f.key, Number(e.target.value))}
+                        className="w-full accent-purple-600"
+                      />
+                      {f.hint && <span className="text-[10px] text-sub">{f.hint}</span>}
+                    </label>
+                  ))}
+                </div>
+
+                {/* 백테스트 — 파라미터 우열 판정 근거 */}
+                <div className="p-3 border-t border-line bg-surface/60 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                    <span className="font-bold text-main">
+                      백테스트 — 학습 {backtest.trainCount}주 → 검증 {backtest.validateCount}주
+                    </span>
+                    {backtest.mapePct === null ? (
+                      <span className="text-sub">이력이 부족해 오차를 산출할 수 없습니다.</span>
+                    ) : (
+                      <>
+                        <span>
+                          MAPE{" "}
+                          <b className={`font-mono ${backtest.mapePct <= (baseline.mapePct ?? Infinity) ? "text-emerald-600" : "text-red-600"}`}>
+                            {backtest.mapePct.toFixed(2)}%
+                          </b>
+                        </span>
+                        <span>
+                          정확도 <b className="font-mono text-main">{backtest.accuracyPct?.toFixed(2)}%</b>
+                        </span>
+                        {baseline.mapePct !== null && (
+                          <span className="text-sub">
+                            기본값 대비{" "}
+                            <b className={`font-mono ${backtest.mapePct <= baseline.mapePct ? "text-emerald-600" : "text-red-600"}`}>
+                              {backtest.mapePct <= baseline.mapePct ? "▼" : "▲"}
+                              {Math.abs(backtest.mapePct - baseline.mapePct).toFixed(2)}%p
+                            </b>
+                            <span className="ml-1">(기본 {baseline.mapePct.toFixed(2)}%)</span>
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {backtest.points.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                      {backtest.points.map((pt) => (
+                        <span key={pt.index} className="px-1.5 py-0.5 rounded border border-line bg-panel">
+                          {pt.index + 1}주 실제 {pt.actual.toLocaleString()} / 예측 {pt.predicted.toLocaleString()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-sub">
+                    검증 구간은 이력의 마지막 {VALIDATE_WEEKS}주다. 실적이 3주차까지만 있어 그 뒤 구간은
+                    수기 예측값을 기준으로 비교하므로 계획 적합도에 가깝다.
+                  </p>
+                </div>
+              </div>
+
               {/* 통계 모델 비교 테이블 */}
               <div className="border border-line rounded-lg overflow-hidden">
                 <div className="p-2.5 bg-surface font-bold text-main border-b border-line flex justify-between">
                   <span>17~24주차 (W43 ~ W50) AI 모델별 예측 비교</span>
-                  <span className="text-purple-600 font-mono text-[11px]">Ensemble Confidence: 95.0%</span>
+                  <span className="text-purple-600 font-mono text-[11px]">α={effective.alpha.toFixed(2)} β={effective.beta.toFixed(2)} MA={effective.maWindow}주</span>
                 </div>
                 <table className="w-full text-[11px] text-left">
                   <thead>
                     <tr className="border-b border-line text-sub bg-surface/50 font-semibold">
                       <th className="p-2">주차</th>
-                      <th className="p-2 text-right">Holt-Winters (50%)</th>
-                      <th className="p-2 text-right">이동평균 (30%)</th>
-                      <th className="p-2 text-right">선형회귀 (20%)</th>
+                      <th className="p-2 text-right">Holt 추세 ({(effective.wHoltWinters * 100).toFixed(0)}%)</th>
+                      <th className="p-2 text-right">이동평균 ({(effective.wMovingAverage * 100).toFixed(0)}%)</th>
+                      <th className="p-2 text-right">선형회귀 ({(effective.wLinearRegression * 100).toFixed(0)}%)</th>
                       <th className="p-2 text-right text-purple-600 font-bold">앙상블 AI 추천</th>
-                      <th className="p-2 text-right">신뢰구간 (±6.5%)</th>
+                      <th className="p-2 text-right">신뢰구간 (±{effective.ciPct}%)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -515,7 +662,8 @@ export default function DemandForecast() {
 
             <div className="p-3 border-t border-line bg-surface flex justify-between items-center">
               <span className="text-sub text-[11px]">
-                Holt-Winters 계절성 평활화 α=0.4, β=0.2 적용
+                {isDefault ? "기본 파라미터" : "조정된 파라미터"} α={effective.alpha.toFixed(2)}, β={effective.beta.toFixed(2)}
+                {backtest.mapePct !== null && <> · 검증 MAPE {backtest.mapePct.toFixed(2)}%</>}
               </span>
               <div className="flex gap-2">
                 <button onClick={() => setAiModalOpen(false)} className="px-4 py-1.5 rounded bg-panel border border-line font-bold text-main">
