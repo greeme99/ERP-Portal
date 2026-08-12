@@ -4,7 +4,7 @@
 //   3) 인메모리 (Node/E2E)
 // 어느 모드든 아래 EntityStore 계약은 동일하므로 화면 코드는 수정하지 않는다.
 import { useSyncExternalStore } from "react";
-import { getBackendStatus, remote, takeSnapshot } from "./restBackend";
+import { getBackendStatus, remote, reserveIdBlock, takeSnapshot } from "./restBackend";
 
 export interface Entity {
   id: string;
@@ -150,11 +150,63 @@ function hydrateSequence() {
   }
 }
 
+// ── 서버 발급 ID 구간 ──────────────────────────────────────────────
+// 여러 클라이언트가 같은 서버를 쓰면 브라우저별 카운터로는 id 가 충돌한다.
+// 서버에서 겹치지 않는 구간을 받아 그 안에서 동기로 발급한다.
+const ID_BLOCK_SIZE = 200;
+const ID_BLOCK_REFILL_AT = 40; // 남은 개수가 이보다 적으면 미리 다음 구간을 받는다
+let blockNext = 0;
+let blockEnd = 0;
+let refilling: Promise<void> | null = null;
+
+const requestBlock = async () => {
+  const block = await reserveIdBlock(ID_BLOCK_SIZE);
+  if (!block) return;
+  // 이미 쓰던 구간이 남아 있으면 버리고 새 구간으로 갈아탄다(겹치지 않으므로 안전).
+  blockNext = block.start;
+  blockEnd = block.end;
+};
+
+/** 부트스트랩에서 호출한다. 첫 구간을 확보해 렌더 시점부터 서버 순번을 쓰게 한다. */
+export async function primeIdBlock(): Promise<boolean> {
+  if (getBackendStatus() !== "rest") return false;
+  await requestBlock();
+  return blockEnd >= blockNext && blockEnd > 0;
+}
+
+const refillSoon = () => {
+  if (refilling) return;
+  refilling = requestBlock().finally(() => {
+    refilling = null;
+  });
+};
+
+/** REST 모드에서 서버 구간이 남아 있으면 그 번호를, 없으면 null 을 준다. */
+function takeServerSequence(): number | null {
+  if (getBackendStatus() !== "rest") return null;
+  if (blockNext > blockEnd) {
+    refillSoon();
+    return null;
+  }
+  const value = blockNext++;
+  if (blockEnd - blockNext < ID_BLOCK_REFILL_AT) refillSoon();
+  return value;
+}
+
+const randomSuffix = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export const nextId = (prefix: string) => {
+  // REST 모드에서는 서버가 발급한 구간만 쓴다. 구간이 일시적으로 비었으면
+  // 로컬 카운터로 떨어지지 않고 충돌 없는 임의 값을 쓴다(다른 클라이언트와 겹치지 않게).
+  if (getBackendStatus() === "rest") {
+    const fromServer = takeServerSequence();
+    return `${prefix}-${fromServer ?? randomSuffix()}`;
+  }
+
   hydrateSequence();
   if (seq >= MAX_NUMERIC_SEQUENCE) {
-    const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return `${prefix}-${random}`;
+    return `${prefix}-${randomSuffix()}`;
   }
   const id = `${prefix}-${++seq}`;
   const storage = getStorage();

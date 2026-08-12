@@ -13,7 +13,11 @@ const PORT = Number(process.env.PORT ?? 5177);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const DATA_DIR = process.env.DATA_DIR ?? join(HERE, "..", "data");
 // 개발용 Vite 오리진만 허용한다. 목록에 없는 오리진에는 CORS 헤더를 주지 않는다.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5180,http://127.0.0.1:5180")
+// Vite 는 지정 포트가 사용 중이면 다음 포트로 올라가므로 폴백 구간까지 함께 허용한다.
+// (허용하지 않으면 CORS 가 조용히 막혀 localStorage 모드로 떨어져 원인을 찾기 어렵다)
+const DEV_PORTS = [5180, 5181, 5182, 5183];
+const DEFAULT_ORIGINS = DEV_PORTS.flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`]).join(",");
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS)
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
@@ -84,6 +88,19 @@ async function route(req, res, url) {
     return send(res, 200, { ok: true, data: await storage.readAll() });
   }
 
+  // ID 순번 구간 예약 — 클라이언트가 동기로 id 를 발급하면서도 서로 겹치지 않게 한다.
+  if (segments[1] === "sequence" && segments[2] === "reserve" && req.method === "POST") {
+    const body = await readBody(req);
+    const count = Number(body?.count ?? 1);
+    if (!Number.isFinite(count) || count < 1) return fail(res, 400, "count 는 1 이상의 수여야 합니다.");
+    try {
+      const { start, end } = await storage.reserveSequence(count);
+      return send(res, 200, { ok: true, start, end });
+    } catch (error) {
+      return fail(res, error.status ?? 500, error.message);
+    }
+  }
+
   if (segments[1] !== "entities") return fail(res, 404, "알 수 없는 경로입니다.");
 
   const key = segments[2];
@@ -101,6 +118,7 @@ async function route(req, res, url) {
     const invalid = validateEntities(body?.data);
     if (invalid) return fail(res, 400, invalid);
     const saved = await storage.write(key, body.data);
+    await storage.observeIds(saved);
     return send(res, 200, { ok: true, data: saved });
   }
 
@@ -116,6 +134,7 @@ async function route(req, res, url) {
         }
         return [row, ...current];
       });
+      await storage.observeIds([row]);
       return send(res, 201, { ok: true, data: next });
     } catch (error) {
       return fail(res, error.status ?? 500, error.message);

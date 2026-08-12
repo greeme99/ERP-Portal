@@ -126,7 +126,41 @@ console.log("\n[6] 동시 쓰기 직렬화 (갱신 유실 방지)");
   check(after.body?.data?.length === 20, "20건이 모두 남아 있다 (유실 없음)", `count=${after.body?.data?.length}`);
 }
 
-console.log("\n[7] 재시작 후에도 데이터가 유지된다");
+console.log("\n[7] ID 순번 구간 예약 — 클라이언트 간 충돌 방지");
+{
+  const a = await call("/api/sequence/reserve", { method: "POST", body: JSON.stringify({ count: 10 }) });
+  check(a.status === 200 && a.body?.end - a.body?.start === 9, "10개 구간을 예약한다", JSON.stringify(a.body));
+
+  const b = await call("/api/sequence/reserve", { method: "POST", body: JSON.stringify({ count: 10 }) });
+  check(b.body?.start > a.body?.end, "다음 예약은 앞 구간과 겹치지 않는다", `${JSON.stringify(a.body)} → ${JSON.stringify(b.body)}`);
+
+  // 동시 예약 20건이 서로 겹치지 않아야 한다 (다중 클라이언트 상황)
+  const blocks = await Promise.all(
+    Array.from({ length: 20 }, () => call("/api/sequence/reserve", { method: "POST", body: JSON.stringify({ count: 5 }) }))
+  );
+  const used = new Set<number>();
+  let overlap = false;
+  for (const blk of blocks) {
+    for (let n = blk.body.start; n <= blk.body.end; n++) {
+      if (used.has(n)) overlap = true;
+      used.add(n);
+    }
+  }
+  check(!overlap && used.size === 100, "동시 예약 20건(각 5개)이 전혀 겹치지 않는다", `unique=${used.size}`);
+
+  const bad = await call("/api/sequence/reserve", { method: "POST", body: JSON.stringify({ count: 0 }) });
+  check(bad.status === 400, "count 0 은 400");
+
+  // 기존 데이터의 id 순번을 관찰해 최고 수위를 올린다
+  await call("/api/entities/seq.observe", {
+    method: "PUT",
+    body: JSON.stringify({ data: [{ id: "X-500000" }] }),
+  });
+  const after = await call("/api/sequence/reserve", { method: "POST", body: JSON.stringify({ count: 1 }) });
+  check(after.body?.start > 500000, "저장된 id 보다 큰 번호를 발급한다", JSON.stringify(after.body));
+}
+
+console.log("\n[8] 재시작 후에도 데이터가 유지된다");
 {
   const before = await call("/api/entities/master.material");
   server.close();

@@ -4,8 +4,15 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 // 저장 키는 파일명이 되므로 경로 조작을 막기 위해 화이트리스트 패턴만 허용한다.
+// 첫 글자에 밑줄을 허용하지 않으므로 아래 _sequence.json 과 절대 충돌하지 않는다.
 const KEY_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
 const MAX_ROWS = 10_000;
+
+// ID 순번 — 클라이언트가 구간을 예약해 가고 서버는 최고 수위만 관리한다.
+const SEQUENCE_FILE = "_sequence.json";
+const SEQUENCE_START = 1000;
+const MAX_SEQUENCE = 999_999_999;
+const MAX_RESERVE = 10_000;
 
 export function isValidKey(key) {
   return typeof key === "string" && KEY_PATTERN.test(key) && !key.includes("..");
@@ -45,6 +52,24 @@ export function createStorage(dataDir) {
     // 앞 작업이 실패해도 뒤 작업이 이어지도록 거부를 삼킨 체인을 보관한다.
     chains.set(key, next.catch(() => {}));
     return next;
+  };
+
+  const readSequence = async () => {
+    try {
+      const raw = await readFile(join(root, SEQUENCE_FILE), "utf8");
+      const parsed = JSON.parse(raw);
+      const value = Number(parsed?.value);
+      return Number.isSafeInteger(value) && value >= SEQUENCE_START && value <= MAX_SEQUENCE ? value : SEQUENCE_START;
+    } catch {
+      return SEQUENCE_START;
+    }
+  };
+
+  const writeSequence = async (value) => {
+    const target = join(root, SEQUENCE_FILE);
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tmp, JSON.stringify({ value }), "utf8");
+    await rename(tmp, target);
   };
 
   return {
@@ -90,6 +115,44 @@ export function createStorage(dataDir) {
         await writeFile(tmp, JSON.stringify(data), "utf8");
         await rename(tmp, target);
         return data;
+      });
+    },
+
+    /**
+     * 겹치지 않는 ID 구간을 예약해 준다. 여러 클라이언트가 같은 서버를 쓰더라도
+     * 각자 다른 구간을 받으므로 id 가 충돌하지 않는다.
+     * 쓰기가 직렬화되므로 동시 예약도 안전하다.
+     */
+    reserveSequence(count) {
+      const size = Math.min(Math.max(Math.trunc(count) || 1, 1), MAX_RESERVE);
+      return serialize(SEQUENCE_FILE, async () => {
+        const current = await readSequence();
+        if (current >= MAX_SEQUENCE) throw Object.assign(new Error("ID 순번이 상한에 도달했습니다."), { status: 507 });
+        const start = current + 1;
+        const end = Math.min(current + size, MAX_SEQUENCE);
+        await writeSequence(end);
+        return { start, end };
+      });
+    },
+
+    readSequence,
+
+    /**
+     * 저장되는 행의 id 에서 순번을 관찰해 최고 수위를 올린다.
+     * seed 데이터가 먼저 들어온 뒤 예약이 시작되어도 번호가 겹치지 않게 한다.
+     */
+    observeIds(rows) {
+      let max = 0;
+      for (const row of rows) {
+        const match = /-(\d+)$/.exec(String(row?.id ?? ""));
+        if (!match) continue;
+        const value = Number(match[1]);
+        if (Number.isSafeInteger(value) && value <= MAX_SEQUENCE) max = Math.max(max, value);
+      }
+      if (max <= SEQUENCE_START) return Promise.resolve();
+      return serialize(SEQUENCE_FILE, async () => {
+        const current = await readSequence();
+        if (max > current) await writeSequence(max);
       });
     },
 
