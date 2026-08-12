@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { customerStore, materialStore } from "../../data/mock/master";
 import { salesOrderStore, docTotal, atpQty, DocLine } from "../../data/mock/sales";
-import { useStore, nextId, downloadCsv } from "../../services/store";
+import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
+import { addVat, VAT_RATE } from "../../services/documentMath";
 
 const STATUS_STYLE: Record<string, string> = {
   등록: "bg-amber-100 text-amber-700",
@@ -17,11 +19,60 @@ export default function SalesOrderPage() {
   const mats = useStore(materialStore).filter((m) => m.type === "완제품");
   const [sel, setSel] = useState<string | null>(orders[0]?.id ?? null);
   const [creating, setCreating] = useState(false);
+  const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
   const [form, setForm] = useState<{ customer: string; dueDate: string; lines: DocLine[] }>({
     customer: "", dueDate: "2026-08-01", lines: [],
   });
 
   const order = orders.find((o) => o.id === sel);
+
+  // 거래명세서 서식 — 수주 라인을 그대로 명세 항목으로 옮긴다
+  const buildStatementDoc = (o: Entity): PrintDoc => {
+    const lines = (o.lines ?? []) as DocLine[];
+    const { supply, vat, total } = addVat(lines.reduce((s, l) => s + l.qty * l.price, 0));
+    const cust = customers.find((c) => c.code === o.customer);
+    return {
+      title: "거 래 명 세 서",
+      docNo: String(o.code),
+      issuedAt: String(o.orderDate ?? "-"),
+      counterpartyLabel: "공급받는자",
+      counterparty: [
+        { label: "고객코드", value: String(o.customer) },
+        { label: "고객명", value: String(cust?.name ?? o.customer) },
+        { label: "결제조건", value: String(cust?.payTerm ?? "-") },
+        { label: "통화", value: String(cust?.currency ?? "KRW") },
+      ],
+      meta: [
+        { label: "수주일", value: String(o.orderDate ?? "-") },
+        { label: "납기일", value: String(o.dueDate ?? "-") },
+        { label: "진행상태", value: String(o.status ?? "-") },
+        { label: "품목 수", value: `${lines.length} 건` },
+      ],
+      columns: [
+        { key: "no", label: "No", align: "center" },
+        { key: "code", label: "품목코드" },
+        { key: "name", label: "품목명" },
+        { key: "qty", label: "수량", align: "right" },
+        { key: "price", label: "단가", align: "right" },
+        { key: "amount", label: "공급가액", align: "right" },
+      ],
+      rows: lines.map((l, i) => ({
+        no: i + 1,
+        code: l.material,
+        name: mat(l.material)?.name ?? "-",
+        qty: l.qty,
+        price: l.price,
+        amount: l.qty * l.price,
+      })),
+      totals: [
+        { label: "공급가액", value: `${supply.toLocaleString()} 원` },
+        { label: `부가세 (${VAT_RATE * 100}%)`, value: `${vat.toLocaleString()} 원` },
+        { label: "합계금액", value: `${total.toLocaleString()} 원` },
+      ],
+      note: ["· 상기와 같이 거래 내역을 명세합니다.", "· 이의가 있는 경우 수령 후 7일 내 통보 바랍니다."].join(String.fromCharCode(10)),
+      signatures: ["담당", "인수자"],
+    };
+  };
   const custName = (code: string) => customers.find((c) => c.code === code)?.name ?? code;
   const mat = (code: string) => mats.find((m) => m.code === code);
 
@@ -122,6 +173,13 @@ export default function SalesOrderPage() {
                 <span className="font-semibold">{order.code} 상세</span>
                 <span className="text-[11px] text-sub">수주일 {order.orderDate}</span>
                 <div className="ml-auto flex gap-1">
+                  <button
+                    onClick={() => setPrintDoc(buildStatementDoc(order))}
+                    title="거래명세서를 인쇄합니다. 인쇄 대화상자에서 PDF로 저장할 수 있습니다."
+                    className="px-3 py-1 rounded border border-line text-[11px] font-semibold hover:bg-accent-soft"
+                  >
+                    🖨 거래명세서
+                  </button>
                   {order.status === "등록" && (
                     <>
                       <button onClick={reserve} className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-semibold">🚚 출하예약</button>
@@ -233,6 +291,7 @@ export default function SalesOrderPage() {
           </div>
         </div>
       )}
+      <PrintableDocument doc={printDoc} onDone={() => setPrintDoc(null)} />
     </div>
   );
 }

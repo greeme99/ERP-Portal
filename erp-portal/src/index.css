@@ -56,3 +56,39 @@ body {
   background: var(--line);
   border-radius: 4px;
 }
+
+/* ── 인쇄 / PDF 서식 ────────────────────────────────
+   브라우저 네이티브 인쇄를 쓴다(새 의존성 없음, 한글 폰트 그대로,
+   인쇄 대화상자에서 "PDF로 저장" 선택 가능).
+   .print-root 는 createPortal 로 body 직속에 붙으므로
+   인쇄 시 #root 만 숨기면 서식만 남는다. */
+.print-root {
+  display: none;
+}
+
+@media print {
+  #root {
+    display: none !important;
+  }
+  .print-root {
+    display: block !important;
+  }
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  /* 표가 페이지 경계에서 잘리지 않게 한다 */
+  .print-root table {
+    page-break-inside: auto;
+  }
+  .print-root tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  .print-root thead {
+    display: table-header-group;
+  }
+  .print-root .print-section {
+    page-break-inside: avoid;
+  }
+}

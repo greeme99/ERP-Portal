@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { materialStore, partnerStore } from "../../data/mock/master";
 import { prStore, poStore } from "../../data/mock/procurement";
-import { useStore, nextId, downloadCsv } from "../../services/store";
+import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
+import { addVat, VAT_RATE } from "../../services/documentMath";
 
 const TODAY = "2026-07-03";
 
@@ -18,6 +20,7 @@ export default function PurchaseOrder() {
   const vendors = useStore(partnerStore).filter((p) => p.type === "공급사");
   const mats = useStore(materialStore);
   const [creating, setCreating] = useState(false);
+  const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
   const [form, setForm] = useState({ pr: "", vendor: "", material: "", qty: 1000, price: 0, dueDate: "2026-07-31" });
 
   // PO 미생성 승인 PR
@@ -47,6 +50,61 @@ export default function PurchaseOrder() {
   const excel = () =>
     downloadCsv("구매발주.csv", ["PO번호", "PR참조", "공급사", "품목", "수량", "단가", "발주일", "납기일", "상태"],
       pos.map((o) => [o.code, o.pr, o.vendor, o.material, o.qty, o.price, o.orderDate, o.dueDate, o.status]));
+
+  // 구매발주서 서식 — 부가세 10% 별도 표기
+  const buildPoDoc = (o: Entity): PrintDoc => {
+    const vendor = vendors.find((v) => v.code === o.vendor);
+    const mat = mats.find((m) => m.code === o.material);
+    const { supply, vat, total } = addVat(o.qty * o.price);
+    return {
+      title: "구 매 발 주 서",
+      docNo: String(o.code),
+      issuedAt: String(o.orderDate ?? TODAY),
+      counterpartyLabel: "수신 (공급사)",
+      counterparty: [
+        { label: "공급사코드", value: String(o.vendor) },
+        { label: "공급사명", value: String(vendor?.name ?? o.vendor) },
+        { label: "결제조건", value: String(vendor?.payTerm ?? "-") },
+        { label: "통화", value: String(vendor?.currency ?? "KRW") },
+      ],
+      meta: [
+        { label: "발주일", value: String(o.orderDate ?? "-") },
+        { label: "납기일", value: String(o.dueDate ?? "-") },
+        { label: "연계 PR", value: String(o.pr ?? "-") },
+        { label: "진행상태", value: String(o.status ?? "-") },
+      ],
+      columns: [
+        { key: "no", label: "No", align: "center" },
+        { key: "code", label: "품목코드" },
+        { key: "name", label: "품목명" },
+        { key: "uom", label: "단위", align: "center" },
+        { key: "qty", label: "수량", align: "right" },
+        { key: "price", label: "단가", align: "right" },
+        { key: "amount", label: "공급가액", align: "right" },
+      ],
+      rows: [
+        {
+          no: 1,
+          code: String(o.material),
+          name: String(mat?.name ?? "-"),
+          uom: String(mat?.uom ?? "EA"),
+          qty: o.qty,
+          price: o.price,
+          amount: supply,
+        },
+      ],
+      totals: [
+        { label: "공급가액", value: `${supply.toLocaleString()} 원` },
+        { label: `부가세 (${VAT_RATE * 100}%)`, value: `${vat.toLocaleString()} 원` },
+        { label: "합계금액", value: `${total.toLocaleString()} 원` },
+      ],
+      note: [
+        "· 납기 준수를 요청드리며, 납기 변경이 필요한 경우 사전 통보 바랍니다.",
+        "· 입고 시 본 발주번호를 거래명세서에 기재해 주십시오.",
+      ].join("\n"),
+      signatures: ["담당", "검토", "승인"],
+    };
+  };
 
   return (
     <div className="space-y-3">
@@ -88,6 +146,7 @@ export default function PurchaseOrder() {
               <th className="px-3 py-2 text-right">금액(원)</th>
               <th className="px-3 py-2">납기일</th>
               <th className="px-3 py-2">상태</th>
+              <th className="px-3 py-2">서식</th>
             </tr>
           </thead>
           <tbody>
@@ -104,6 +163,15 @@ export default function PurchaseOrder() {
                 </td>
                 <td className="px-3 py-2">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_STYLE[o.status] ?? ""}`}>{o.status}</span>
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => setPrintDoc(buildPoDoc(o))}
+                    title="구매발주서를 인쇄합니다. 인쇄 대화상자에서 PDF로 저장할 수 있습니다."
+                    className="px-2 py-0.5 rounded border border-line text-[10px] font-semibold hover:bg-accent-soft"
+                  >
+                    🖨 발주서
+                  </button>
                 </td>
               </tr>
             ))}
@@ -174,6 +242,7 @@ export default function PurchaseOrder() {
           </div>
         </div>
       )}
+      <PrintableDocument doc={printDoc} onDone={() => setPrintDoc(null)} />
     </div>
   );
 }
