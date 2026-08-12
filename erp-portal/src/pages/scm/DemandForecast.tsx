@@ -1,10 +1,10 @@
 // SCM-001 수요예측 — 주단위(Weekly) Bucket Plan Cycle & AI 통계예측 시계열 모델 엔진
 // 수작업 예측값 (고객사 구매계획) 엑셀/CSV 업로드 기능 포함
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { materialStore } from "../../data/mock/master";
 import { mpsStore, MpsDailyItem } from "../../data/mock/production";
-import { forecastStore, mape, accuracy, CURRENT_WEEK, WEEK_BUCKETS, ForecastItem } from "../../data/mock/scm";
-import { useStore, downloadCsv } from "../../services/store";
+import { forecastStore, forecastParamStore, mape, accuracy, CURRENT_WEEK, WEEK_BUCKETS, ForecastItem } from "../../data/mock/scm";
+import { useStore, downloadCsv, nextId } from "../../services/store";
 import {
   runAiStatisticalForecastEngine,
   backtestForecast,
@@ -26,7 +26,8 @@ export default function DemandForecast() {
   const [activeTab, setActiveTab] = useState<"all" | "manual" | "ai">("all");
   const [selectedFg, setSelectedFg] = useState<string>("FG-1001");
   const [aiModalOpen, setAiModalOpen] = useState(false);
-  // 튜닝 패널 파라미터 — 기본값은 기존 동작과 동일하다
+  // 튜닝 패널 파라미터 — 화면에서는 draft 로 자유롭게 조정하고, 저장 버튼으로만 영속화한다.
+  // (슬라이더를 끌 때마다 서버에 요청이 나가지 않게 한다)
   const [params, setParams] = useState<ForecastParams>(DEFAULT_PARAMS);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +42,23 @@ export default function DemandForecast() {
     if (activeTab === "ai") return wb.seq >= 17;
     return true;
   });
+
+  // 품목별 저장 파라미터 — 행이 없으면 기본값을 쓴다
+  const savedParams = useStore(forecastParamStore);
+  const savedRow = savedParams.find((r) => r.material === selectedFg);
+  // 항상 normalizeParams 를 거쳐 반환한다. 비교에 JSON.stringify 를 쓰므로
+  // 키 순서가 다르면 같은 값인데도 다르다고 판정된다.
+  const savedParamsFor = (material: string): ForecastParams => {
+    const row = savedParams.find((r) => r.material === material);
+    return normalizeParams((row ?? DEFAULT_PARAMS) as Partial<ForecastParams>);
+  };
+
+  // 품목을 바꾸면 그 품목의 저장값을 불러온다 (미저장 편집은 버린다)
+  useEffect(() => {
+    setParams(savedParamsFor(selectedFg));
+    // savedParams 가 갱신될 때마다 덮어쓰지 않도록 품목 변경만 감시한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFg]);
 
   // 선택한 품목의 과거 실적 데이터 추출 (W27~W29 실적 + W30~W42 수기예측)
   const fgHistory = rows
@@ -57,6 +75,17 @@ export default function DemandForecast() {
   const isDefault = JSON.stringify(effective) === JSON.stringify(normalizeParams(DEFAULT_PARAMS));
 
   const setParam = (key: keyof ForecastParams, value: number) => setParams((prev) => ({ ...prev, [key]: value }));
+
+  // 저장된 값과 화면 값이 같은지 — 미저장 변경을 사용자에게 알린다
+  const savedEffective = savedParamsFor(selectedFg);
+  const isSaved = JSON.stringify(effective) === JSON.stringify(savedEffective);
+
+  // 품목별 파라미터 저장 (upsert). REST 모드에서는 서버에 그대로 반영된다.
+  const saveParams = () => {
+    const payload = { material: selectedFg, ...effective };
+    if (savedRow) forecastParamStore.update(savedRow.id, payload);
+    else forecastParamStore.create({ id: nextId("FP"), ...payload });
+  };
 
   const runOptimize = () => {
     const best = optimizeSmoothing(fgHistory, params, VALIDATE_WEEKS);
@@ -522,7 +551,20 @@ export default function DemandForecast() {
               {/* 파라미터 튜닝 패널 — 슬라이더를 움직이면 아래 표와 백테스트가 즉시 갱신된다 */}
               <div className="border border-line rounded-lg overflow-hidden">
                 <div className="p-2.5 bg-surface font-bold text-main border-b border-line flex flex-wrap justify-between items-center gap-2">
-                  <span>🎛 평활 계수 · 앙상블 가중 튜닝</span>
+                  <span className="flex items-center gap-2">
+                    <span>🎛 평활 계수 · 앙상블 가중 튜닝</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        isSaved
+                          ? savedRow
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-600"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {isSaved ? (savedRow ? `${selectedFg} 저장값` : "기본값") : "미저장 변경"}
+                    </span>
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={runOptimize}
@@ -530,6 +572,14 @@ export default function DemandForecast() {
                       className="px-2.5 py-1 rounded bg-purple-600 text-white font-bold text-[11px] hover:bg-purple-700"
                     >
                       ⚡ α·β 자동 최적화
+                    </button>
+                    <button
+                      onClick={saveParams}
+                      disabled={isSaved}
+                      title={`현재 값을 ${selectedFg} 의 예측 파라미터로 저장합니다.`}
+                      className="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 disabled:opacity-40"
+                    >
+                      💾 품목 저장
                     </button>
                     <button
                       onClick={() => setParams(DEFAULT_PARAMS)}
