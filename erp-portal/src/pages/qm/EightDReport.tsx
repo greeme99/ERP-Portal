@@ -6,21 +6,28 @@ import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDoc
 export interface EightDItem {
   id: string;
   reportNo: string;
-  title: string;
+  title: string; // 문제 정의 (D2)
   customerName: string;
   materialCode: string;
   materialName: string;
+  teamMembers: string; // 팀 구성 (D1) — 주관 부서와 참여자
+  containment: string; // 임시 조치 (D3) — 확산 방지
   rootCause: string; // 근본 원인 (D4)
   correctiveAction: string; // 시정 조치 (D5)
   preventiveAction: string; // 재발 방지책 (D6)
+  standardization: string; // 표준화 (D7) — 개정 문서
+  closureNote: string; // 종결 (D8) — 효과 검증 결과
   status: "D1_팀구성" | "D4_원인분석" | "D6_방지책수립" | "D8_완료";
   createdAt: string;
 }
 
-export const eightDStore = createStore("qm.eight_d", [
-  { id: "8D-01", reportNo: "8D-2026-001", title: "소형가전 청소기 모터 동작 소음 과다 8D 리포트", customerName: "삼성전자", materialCode: "FG-1001", materialName: "소형가전 무선청소기", rootCause: "모터 베어링 유격 공차 불량", correctiveAction: "베어링 전수 조립 치수 재정렬", preventiveAction: "공급사 모터 베어링 수입검사 항목 추가 (STD-RM-004)", status: "D8_완료", createdAt: "2026-07-15" },
-  { id: "8D-02", reportNo: "8D-2026-002", title: "로봇청소기 PCB 모듈 SMT 미납 발생 건", customerName: "LG전자", materialCode: "SF-2001", materialName: "메인 제어 PCB 모듈", rootCause: "SMT 크림반도 납도포 패턴 노즐 막힘", correctiveAction: "노즐 자동 세척 주기 변경(2시간→30분)", preventiveAction: "노즐 압력 자동 센서 스펙 모니터링 구축", status: "D6_방지책수립", createdAt: "2026-07-28" },
-  { id: "8D-03", reportNo: "8D-2026-003", title: "공기청정기 하우징 스크래치 외관 부적합", customerName: "쿠쿠전자", materialCode: "FG-2002", materialName: "스마트 공기청정기", rootCause: "사출 금형 이형제 과다 사용 및 운반 트레이 마찰", correctiveAction: "트레이 완충재 교체 및 이형제 살포 비율 자동화", preventiveAction: "사출 공정 표면 스크래치 자동 검사 로봇 도입", status: "D4_원인분석", createdAt: "2026-08-03" },
+// 저장 키에 v2 를 붙였다. D1·D3·D7·D8 필드를 추가했으므로 이전 키로 저장된
+// 데이터를 복원하면 해당 항목이 빈 값으로 보인다. 이 화면은 조회 전용이라
+// 사용자가 입력한 데이터가 없어 새 seed 로 시작하는 것이 안전하다.
+export const eightDStore = createStore("qm.eight_d.v2", [
+  { id: "8D-01", reportNo: "8D-2026-001", title: "소형가전 청소기 모터 동작 소음 과다 8D 리포트", customerName: "삼성전자", materialCode: "FG-1001", materialName: "소형가전 무선청소기", teamMembers: "품질보증본부 주관 · 참여: 생산기술팀 이생산, 구매 박구매, 공급사 Shenzhen Motor 품질담당", containment: "해당 LOT(L-26071) 출하 보류 · 기출하 1,200대 고객 재고 전수 선별 · 대체품 우선 공급", rootCause: "모터 베어링 유격 공차 불량", correctiveAction: "베어링 전수 조립 치수 재정렬", preventiveAction: "공급사 모터 베어링 수입검사 항목 추가 (STD-RM-004)", standardization: "검사기준서 STD-RM-004 개정(Rev.2) · 수입검사 관리계획서에 베어링 유격 항목 반영", closureNote: "시정 후 3개월 소음 불량 0건 · Cpk 1.52 확보로 효과 검증 완료, 팀 포상 후 종결", status: "D8_완료", createdAt: "2026-07-15" },
+  { id: "8D-02", reportNo: "8D-2026-002", title: "로봇청소기 PCB 모듈 SMT 미납 발생 건", customerName: "LG전자", materialCode: "SF-2001", materialName: "메인 제어 PCB 모듈", teamMembers: "품질보증본부 주관 · 참여: SMT공정팀 최공정, 설비보전팀 정보전", containment: "해당 생산분 전수 X-ray 검사 · 노즐 즉시 교체 후 초물 재확인", rootCause: "SMT 크림반도 납도포 패턴 노즐 막힘", correctiveAction: "노즐 자동 세척 주기 변경(2시간→30분)", preventiveAction: "노즐 압력 자동 센서 스펙 모니터링 구축", standardization: "SMT 작업표준서 WI-SMT-007 개정 · 노즐 세척 주기 30분으로 설비 점검표 반영", closureNote: "효과 검증 진행 중 — 2주 추가 모니터링 후 종결 예정", status: "D6_방지책수립", createdAt: "2026-07-28" },
+  { id: "8D-03", reportNo: "8D-2026-003", title: "공기청정기 하우징 스크래치 외관 부적합", customerName: "쿠쿠전자", materialCode: "FG-2002", materialName: "스마트 공기청정기", teamMembers: "품질보증본부 주관 · 참여: 사출공정팀 조사출, 물류팀 한물류", containment: "스크래치 발생 트레이 사용 중지 · 완제품 창고 재고 외관 재검사", rootCause: "사출 금형 이형제 과다 사용 및 운반 트레이 마찰", correctiveAction: "트레이 완충재 교체 및 이형제 살포 비율 자동화", preventiveAction: "사출 공정 표면 스크래치 자동 검사 로봇 도입", standardization: "(D7 미착수) 원인 분석 확정 후 사출 작업표준서 개정 예정", closureNote: "(D8 미착수)", status: "D4_원인분석", createdAt: "2026-08-03" },
 ]);
 
 export default function EightDReport() {
@@ -48,14 +55,14 @@ export default function EightDReport() {
       { label: "완료여부", value: r.status === "D8_완료" ? "완료" : "진행중" },
     ],
     sections: [
-      { heading: "D1. 팀 구성 (Team)", body: `품질보증본부 주관 · ${r.customerName} 대응 TF` },
+      { heading: "D1. 팀 구성 (Team)", body: r.teamMembers },
       { heading: "D2. 문제 정의 (Problem Description)", body: r.title },
-      { heading: "D3. 임시 조치 (Interim Containment)", body: "해당 LOT 출하 보류 및 재고 전수 선별" },
+      { heading: "D3. 임시 조치 (Interim Containment)", body: r.containment },
       { heading: "D4. 근본 원인 (Root Cause)", body: r.rootCause },
       { heading: "D5. 시정 조치 (Corrective Action)", body: r.correctiveAction },
       { heading: "D6. 재발 방지책 (Preventive Action)", body: r.preventiveAction },
-      { heading: "D7. 표준화 (Standardization)", body: "검사기준서(QM-001) 및 관리계획서 개정 반영" },
-      { heading: "D8. 종결 및 팀 인정 (Closure)", body: r.status === "D8_완료" ? "효과 검증 완료 후 종결" : "효과 검증 진행 중" },
+      { heading: "D7. 표준화 (Standardization)", body: r.standardization },
+      { heading: "D8. 종결 및 팀 인정 (Closure)", body: r.closureNote },
     ],
     signatures: ["작성", "품질책임", "승인"],
   });
@@ -63,16 +70,25 @@ export default function EightDReport() {
   const excel = () =>
     downloadCsv(
       "품질_8D_Report_대장.csv",
-      ["리포트번호", "제목", "고객사", "품목코드", "품목명", "근본원인(D4)", "시정조치(D5)", "재발방지책(D6)", "진행단계", "작성일자"],
+      [
+        "리포트번호", "고객사", "품목코드", "품목명",
+        "팀구성(D1)", "문제정의(D2)", "임시조치(D3)", "근본원인(D4)",
+        "시정조치(D5)", "재발방지책(D6)", "표준화(D7)", "종결(D8)",
+        "진행단계", "작성일자",
+      ],
       filtered.map((r) => [
         r.reportNo,
-        r.title,
         r.customerName,
         r.materialCode,
         r.materialName,
+        r.teamMembers,
+        r.title,
+        r.containment,
         r.rootCause,
         r.correctiveAction,
         r.preventiveAction,
+        r.standardization,
+        r.closureNote,
         r.status,
         r.createdAt,
       ])
