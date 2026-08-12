@@ -49,6 +49,9 @@ npx.cmd tsx scripts/store-persistence-scenario.ts
 npx.cmd tsx scripts/e2e-scenario.ts
 npx.cmd tsx scripts/run-5-scenarios.ts
 
+# forecast (예측 파라미터 튜닝 엔진)
+npx.cmd tsx scripts/forecast-tuning-scenario.ts
+
 # backend (REST 서버 + store 왕복)
 npx.cmd tsx scripts/backend-scenario.ts
 npx.cmd tsx scripts/rest-store-scenario.ts

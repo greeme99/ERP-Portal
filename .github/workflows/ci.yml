@@ -50,6 +50,9 @@ jobs:
       - name: E2E — 5대 대표 시나리오
         run: npx tsx scripts/run-5-scenarios.ts
 
+      - name: Forecast — 파라미터 튜닝 엔진 (정규화·백테스트·최적화)
+        run: npx tsx scripts/forecast-tuning-scenario.ts
+
       - name: Backend — REST 서버 (입력 검증·동시성·영속)
         run: npx tsx scripts/backend-scenario.ts
 
