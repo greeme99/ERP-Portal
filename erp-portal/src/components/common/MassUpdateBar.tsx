@@ -130,10 +130,17 @@ export default function MassUpdateBar({ title, store, rows, columns, newRow, key
     }
   };
 
+  // 검토한 변경을 한 번에 반영한다. store.replaceAll 이라 REST 모드에서도
+  // 단건 요청 N개가 아니라 PUT 한 번으로 나가 부분 반영이 생기지 않는다.
   const applyPlan = () => {
     if (!plan) return;
-    plan.updates.forEach((u) => store.update(u.row.id, u.patch));
-    plan.creates.forEach((c) => store.create(c));
+    const patched = new Map(plan.updates.map((u) => [u.row.id, u.patch]));
+    const next = store.getAll().map((r) => {
+      const patch = patched.get(r.id);
+      return patch ? { ...r, ...patch, id: r.id } : r;
+    });
+    // 신규는 기존 create() 와 같이 앞쪽에 쌓는다.
+    store.replaceAll([...plan.creates.slice().reverse(), ...next]);
     setPlan(null);
   };
 

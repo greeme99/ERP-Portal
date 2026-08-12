@@ -1,6 +1,10 @@
-// 브라우저에서는 localStorage에 지속하고, Node/E2E에서는 인메모리로 동작하는 Entity Store.
-// 추후 REST API로 교체할 때도 화면 코드는 변경하지 않는 것이 원칙이다.
+// Entity Store — 저장 위치는 세 가지다.
+//   1) REST 백엔드 (VITE_API_URL 설정 + 서버 연결 성공): 서버가 진실, 낙관적 쓰기
+//   2) localStorage (브라우저, 서버 없음): 기존 프로토타입 동작
+//   3) 인메모리 (Node/E2E)
+// 어느 모드든 아래 EntityStore 계약은 동일하므로 화면 코드는 수정하지 않는다.
 import { useSyncExternalStore } from "react";
+import { getBackendStatus, remote, takeSnapshot } from "./restBackend";
 
 export interface Entity {
   id: string;
@@ -13,6 +17,37 @@ export interface EntityStore {
   create: (row: Omit<Entity, "id"> & { id?: string }) => Entity;
   update: (id: string, patch: Partial<Entity>) => void;
   remove: (ids: string[]) => void;
+  /**
+   * 전체 행을 한 번에 교체한다. 일괄 업로드처럼 N건을 원자적으로 반영해야 하는
+   * 경로에서 쓴다. REST 모드에서는 단건 요청 N개가 아니라 PUT 한 번으로 나간다.
+   */
+  replaceAll: (rows: Entity[]) => void;
+}
+
+// 쓰기 실패를 화면에 알리는 훅. 기본은 콘솔 경고이며 앱에서 교체한다.
+let writeFailureHandler: (message: string) => void = (message) => console.error(`[ERP store] ${message}`);
+export function setWriteFailureHandler(handler: (message: string) => void) {
+  writeFailureHandler = handler;
+}
+
+// 부트스트랩이 끝난 뒤 서버 스냅샷을 주입할 수 있도록 키 있는 store 를 등록해 둔다.
+const keyedStores = new Map<string, (rows: Entity[]) => void>();
+
+/**
+ * bootstrapBackend() 직후 1회 호출한다. 서버 스냅샷이 있는 키만 캐시를 교체한다.
+ * 서버에 없는 키는 seed 상태로 남고 첫 쓰기 때 서버에 생성된다.
+ */
+export function hydrateFromBackend(): number {
+  if (getBackendStatus() !== "rest") return 0;
+  let adopted = 0;
+  keyedStores.forEach((adopt, key) => {
+    const rows = takeSnapshot(key);
+    if (rows) {
+      adopt(rows);
+      adopted++;
+    }
+  });
+  return adopted;
 }
 
 interface PersistedEntities {
@@ -149,20 +184,35 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
   observeEntitySequences(data);
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((l) => l());
+
+  // REST 모드에서는 서버가 진실이므로 localStorage 에 쓰지 않는다.
+  // (두 저장소가 서로 다른 상태를 갖는 것을 막는다)
+  const isRest = () => Boolean(storageKey) && getBackendStatus() === "rest";
   const persist = () => {
-    if (persistenceEnabled && storage && fullKey) {
+    if (!isRest() && persistenceEnabled && storage && fullKey) {
       writePersisted(storage, fullKey, data);
     }
   };
 
-  return {
+  // 낙관적 쓰기가 실패하면 서버를 다시 읽어 진실로 되돌리고 사용자에게 알린다.
+  const rollback = (action: string) => async (error: Error) => {
+    const server = storageKey ? await remote.refetch(storageKey) : null;
+    if (server) {
+      data = server;
+      observeEntitySequences(data);
+      emit();
+    }
+    writeFailureHandler(`${action} 저장에 실패해 서버 상태로 되돌렸습니다: ${error.message}`);
+  };
+
+  const store: EntityStore = {
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     getAll: () => data,
     create(row) {
-      if (persistenceEnabled && data.length >= MAX_PERSISTED_ROWS) {
+      if (!isRest() && persistenceEnabled && data.length >= MAX_PERSISTED_ROWS) {
         throw new Error(`Entity store row limit exceeded: ${MAX_PERSISTED_ROWS}`);
       }
       const created: Entity = { ...row, id: row.id ?? nextId("row") };
@@ -172,6 +222,7 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
       data = [created, ...data];
       persist();
       emit();
+      if (isRest() && storageKey) remote.createRow(storageKey, created, rollback("신규 등록"));
       return created;
     },
     update(id, patch) {
@@ -179,13 +230,33 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
       data = data.map((r) => (r.id === id ? { ...r, ...safePatch, id } : r));
       persist();
       emit();
+      if (isRest() && storageKey) remote.updateRow(storageKey, id, safePatch, rollback("수정"));
     },
     remove(ids) {
       data = data.filter((r) => !ids.includes(r.id));
       persist();
       emit();
+      if (isRest() && storageKey) remote.removeRows(storageKey, ids, rollback("삭제"));
+    },
+    replaceAll(rows) {
+      data = [...rows];
+      observeEntitySequences(data);
+      persist();
+      emit();
+      if (isRest() && storageKey) remote.replaceAll(storageKey, data, rollback("일괄 반영"));
     },
   };
+
+  // 서버 스냅샷 주입 경로 — 부트스트랩 시 hydrateFromBackend() 가 호출한다.
+  if (storageKey) {
+    keyedStores.set(storageKey, (rows) => {
+      data = [...rows];
+      observeEntitySequences(data);
+      emit();
+    });
+  }
+
+  return store;
 }
 
 export function useStore(store: EntityStore): Entity[] {

@@ -11,16 +11,22 @@
 - Runtime: Node.js 24 (개발 환경)
 - Package manager: npm
 - Framework: React 18 + TypeScript + Vite + Tailwind CSS + HashRouter
-- Database: 현재 브라우저 localStorage 기반 프로토타입, 향후 REST API + PostgreSQL 전환
+- Database: REST 백엔드(무의존성 Node http + JSON 파일) 또는 브라우저 localStorage.
+  `erp-portal/.env` 의 `VITE_API_URL` 이 있으면 REST 모드, 없거나 서버에 닿지 못하면 localStorage 폴백.
+  향후 PostgreSQL 전환 예정.
 - Test: TypeScript typecheck + Node E2E 시나리오
 
 ## Architecture
-- `erp-portal/src/services/store.ts`: EntityStore 공개 API와 브라우저 지속성 경계
+- `erp-portal/src/services/store.ts`: EntityStore 공개 API와 지속성 경계 (REST/localStorage/메모리)
+- `erp-portal/src/services/restBackend.ts`: REST 전송 계층 — 스냅샷 부트스트랩, 낙관적 쓰기, 실패 롤백
+- `erp-portal/server/`: 무의존성 Node REST 서버. 신뢰 경계 입력 검증과 키별 쓰기 직렬화를 담당
 - `erp-portal/src/services/insights.ts`: KPI·예외·AI Agent 인사이트 계산
 - `erp-portal/src/data/mock/`: 도메인별 초기 데이터와 singleton store
 - `erp-portal/src/pages/`: 모듈별 실화면, `ScaffoldPage`는 미구현 메뉴의 공통 화면
 - 의존성 방향: 화면 → store/insights → mock data. 화면에서 localStorage에 직접 접근하지 않는다.
-- 공개 API/호환성 제약: `EntityStore`의 subscribe/getAll/create/update/remove 계약을 유지해 향후 REST 전환 시 화면을 수정하지 않는다.
+- 공개 API/호환성 제약: `EntityStore`의 subscribe/getAll/create/update/remove/replaceAll 계약을 유지한다.
+  `getAll()`은 동기이고 `create()`는 Entity를 동기 반환하므로 REST 모드도 캐시 우선 + 낙관적 쓰기여야 한다.
+  N건을 원자적으로 반영해야 하는 경로(일괄 업로드)는 `replaceAll`을 쓴다.
 
 ## Canonical Commands
 ```powershell
@@ -38,9 +44,18 @@ npx.cmd tsx scripts/store-persistence-scenario.ts
 
 # integration/e2e
 npx.cmd tsx scripts/e2e-scenario.ts
+npx.cmd tsx scripts/run-5-scenarios.ts
+
+# backend (REST 서버 + store 왕복)
+npx.cmd tsx scripts/backend-scenario.ts
+npx.cmd tsx scripts/rest-store-scenario.ts
 
 # build
 npm.cmd run build
+
+# 개발 서버 (터미널 2개)
+npm.cmd run server   # 백엔드 http://127.0.0.1:5177
+npm.cmd run dev      # 화면  http://localhost:5180
 ```
 
 ## Coding Rules
@@ -48,7 +63,10 @@ npm.cmd run build
 - 새 의존성은 필요성과 대안을 설명한 후 추가한다.
 - 요청과 무관한 포맷/리팩터링을 금지한다.
 - 공개 인터페이스 변경은 명시적으로 보고한다.
-- localStorage는 합성 데이터용 프로토타입 캐시다. 실제 개인정보·권한 원본·인증정보·영업비밀을 저장하지 않는다.
+- localStorage와 REST 백엔드의 JSON 저장소는 모두 합성 데이터용 프로토타입 캐시다.
+  실제 개인정보·권한 원본·인증정보·영업비밀을 저장하지 않는다.
+- 프로토타입 백엔드는 인증·인가를 구현하지 않는다. 운영 전환 시 서버측 인증/인가와
+  트랜잭션 저장소로 교체해야 한다. 브라우저에서 오는 입력은 서버에서 다시 검증한다.
 - localStorage의 권한 데이터는 UI 데모용이며 실제 인가는 향후 서버에서 재검증한다.
 
 ## Verification Matrix
