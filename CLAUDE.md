@@ -19,7 +19,8 @@
 ## Architecture
 - `erp-portal/src/services/store.ts`: EntityStore 공개 API와 지속성 경계 (REST/localStorage/메모리)
 - `erp-portal/src/services/restBackend.ts`: REST 전송 계층 — 스냅샷 부트스트랩, 낙관적 쓰기, 실패 롤백
-- `erp-portal/server/`: 무의존성 Node REST 서버. 신뢰 경계 입력 검증과 키별 쓰기 직렬화를 담당
+- `erp-portal/server/`: 무의존성 Node REST 서버. 신뢰 경계 입력 검증, 키별 쓰기 직렬화,
+  ID 순번 구간 예약(`_sequence.json`)을 담당
 - `erp-portal/src/services/insights.ts`: KPI·예외·AI Agent 인사이트 계산
 - `erp-portal/src/data/mock/`: 도메인별 초기 데이터와 singleton store
 - `erp-portal/src/pages/`: 모듈별 실화면, `ScaffoldPage`는 미구현 메뉴의 공통 화면
@@ -27,6 +28,8 @@
 - 공개 API/호환성 제약: `EntityStore`의 subscribe/getAll/create/update/remove/replaceAll 계약을 유지한다.
   `getAll()`은 동기이고 `create()`는 Entity를 동기 반환하므로 REST 모드도 캐시 우선 + 낙관적 쓰기여야 한다.
   N건을 원자적으로 반영해야 하는 경로(일괄 업로드)는 `replaceAll`을 쓴다.
+- ID 발급: REST 모드에서는 서버가 겹치지 않는 순번 구간을 예약해 주고 `nextId`가 그 안에서 동기 발급한다.
+  클라이언트별 카운터로 되돌아가지 않는다(다중 사용자 id 충돌 방지).
 
 ## Canonical Commands
 ```powershell

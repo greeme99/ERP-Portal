@@ -6,7 +6,18 @@
     <title>표준 ERP 포탈</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      스플래시 — REST 부트스트랩(스냅샷 + ID 구간) 동안 빈 화면이 보이지 않게 한다.
+      React 가 마운트되면 #root 내용이 통째로 교체되므로 별도 제거 코드가 필요 없다.
+    -->
+    <div id="root">
+      <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:system-ui,-apple-system,'Malgun Gothic',sans-serif;background:#f8fafc;color:#475569">
+        <div style="width:28px;height:28px;border:3px solid #cbd5e1;border-top-color:#2563eb;border-radius:50%;animation:erp-spin .8s linear infinite"></div>
+        <div style="font-size:13px;font-weight:600">표준 ERP 포탈</div>
+        <div style="font-size:11px;color:#94a3b8">기준정보를 불러오는 중…</div>
+      </div>
+      <style>@keyframes erp-spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

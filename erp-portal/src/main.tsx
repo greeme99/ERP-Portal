@@ -4,7 +4,7 @@ import { HashRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { bootstrapBackend, isRestConfigured } from "./services/restBackend";
-import { hydrateFromBackend, setWriteFailureHandler } from "./services/store";
+import { hydrateFromBackend, primeIdBlock, setWriteFailureHandler } from "./services/store";
 
 const render = () =>
   ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -22,9 +22,14 @@ setWriteFailureHandler((message) => {
 
 // REST 백엔드가 설정된 경우에만 스냅샷을 먼저 받아 seed 가 잠깐 보이는 것을 막는다.
 // 서버에 닿지 못하면 localStorage 모드로 그대로 렌더한다.
+// 부트스트랩 동안 화면이 비지 않도록 index.html 의 스플래시가 남아 있다가 렌더 시 교체된다.
 if (isRestConfigured()) {
   bootstrapBackend()
-    .then(() => hydrateFromBackend())
+    .then(async () => {
+      hydrateFromBackend();
+      // 렌더 전에 ID 구간을 확보해 첫 신규 등록부터 서버 순번을 쓰게 한다.
+      await primeIdBlock();
+    })
     .finally(render);
 } else {
   render();

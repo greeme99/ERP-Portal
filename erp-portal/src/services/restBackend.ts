@@ -32,6 +32,26 @@ const statusListeners = new Set<(s: BackendStatus) => void>();
 export const isRestConfigured = () => BASE_URL !== "";
 export const getBackendStatus = () => status;
 
+/**
+ * 서버에서 겹치지 않는 ID 순번 구간을 받아온다.
+ * nextId() 는 동기여야 하므로 구간을 미리 확보해 두고 그 안에서 발급한다.
+ */
+export async function reserveIdBlock(count: number): Promise<{ start: number; end: number } | null> {
+  if (!BASE_URL) return null;
+  try {
+    const res = await fetch(`${BASE_URL}/api/sequence/reserve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count }),
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return Number.isSafeInteger(body?.start) && Number.isSafeInteger(body?.end) ? { start: body.start, end: body.end } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function subscribeBackendStatus(listener: (s: BackendStatus) => void) {
   statusListeners.add(listener);
   return () => statusListeners.delete(listener);

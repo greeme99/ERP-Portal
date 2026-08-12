@@ -129,7 +129,35 @@ console.log("\n[4] 쓰기 실패 시 서버 상태로 롤백하고 통지한다"
   storeMod.setWriteFailureHandler((m) => console.error(`[ERP store] ${m}`));
 }
 
-console.log("\n[5] 서버가 없으면 localStorage/메모리 모드로 폴백한다");
+console.log("\n[5] 서버 발급 ID — 클라이언트 간 충돌 방지");
+{
+  await backend.bootstrapBackend();
+  const primed = await storeMod.primeIdBlock();
+  check(primed === true, "부트스트랩에서 ID 구간을 확보한다");
+
+  const first = storeMod.nextId("MAT");
+  check(/^MAT-\d+$/.test(first), `사람이 읽는 코드 형식을 유지한다 (${first})`);
+
+  const mine = new Set<string>();
+  for (let i = 0; i < 120; i++) mine.add(storeMod.nextId("MAT"));
+  check(mine.size === 120, "같은 클라이언트 안에서 120건이 모두 고유하다", `unique=${mine.size}`);
+
+  // 두 번째 "클라이언트"를 별도 모듈 인스턴스로 띄워 구간이 겹치지 않는지 본다
+  const stamp = Date.now();
+  const backend2 = await import(`../src/services/restBackend?c2=${stamp}`);
+  const store2 = await import(`../src/services/store?c2=${stamp}`);
+  await backend2.bootstrapBackend();
+  await store2.primeIdBlock();
+
+  const theirs = new Set<string>();
+  for (let i = 0; i < 120; i++) theirs.add(store2.nextId("MAT"));
+  check(theirs.size === 120, "두 번째 클라이언트도 120건 고유");
+
+  const collisions = [...mine].filter((id) => theirs.has(id));
+  check(collisions.length === 0, "두 클라이언트의 id 가 전혀 겹치지 않는다", `충돌 ${collisions.length}건: ${collisions.slice(0, 3)}`);
+}
+
+console.log("\n[6] 서버가 없으면 localStorage/메모리 모드로 폴백한다");
 {
   server.close();
   await new Promise((r) => setTimeout(r, 100));
