@@ -1,6 +1,35 @@
+import { useSyncExternalStore } from "react";
+import { getBackendStatus, isRestConfigured, subscribeBackendStatus } from "../../services/restBackend";
+
 interface Props {
   demoPlaybookOpen: boolean;
   onToggleDemoPlaybook: () => void;
+}
+
+// 데이터가 서버에 저장되는지 브라우저에만 남는지는 사용자가 알아야 한다.
+function StorageBadge() {
+  const status = useSyncExternalStore(subscribeBackendStatus, getBackendStatus, getBackendStatus);
+  if (status === "rest") {
+    return (
+      <span className="hidden sm:flex items-center gap-1.5 text-emerald-600 font-semibold" title="변경이 백엔드 서버에 저장됩니다.">
+        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        REST 백엔드 연결
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`hidden sm:flex items-center gap-1.5 font-semibold ${isRestConfigured() ? "text-amber-600" : "text-sub"}`}
+      title={
+        isRestConfigured()
+          ? "백엔드 서버에 연결하지 못해 이 브라우저에만 저장됩니다."
+          : "프로토타입 모드 — 변경은 이 브라우저에만 저장됩니다."
+      }
+    >
+      <span className={`w-2 h-2 rounded-full ${isRestConfigured() ? "bg-amber-500" : "bg-slate-400"}`} />
+      {isRestConfigured() ? "서버 미연결 (로컬 저장)" : "로컬 저장 (프로토타입)"}
+    </span>
+  );
 }
 
 export default function StatusBar({ demoPlaybookOpen, onToggleDemoPlaybook }: Props) {
@@ -10,7 +39,7 @@ export default function StatusBar({ demoPlaybookOpen, onToggleDemoPlaybook }: Pr
         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
         시스템 정상
       </span>
-      <span className="hidden sm:inline">서버: PROD-KR01 (Prototype)</span>
+      <StorageBadge />
       <span className="hidden md:inline">회계기간: 2026-07</span>
 
       {/* 1. Demo Playbook 실행 여부 선택 토글 키 스위치 */}

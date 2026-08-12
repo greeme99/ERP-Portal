@@ -9,6 +9,8 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
+# 프로토타입 백엔드의 JSON 저장소 (합성 데이터, 런타임 생성)
+erp-portal/data/
 .vscode/
 .idea/
 *.log

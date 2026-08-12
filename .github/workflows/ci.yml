@@ -49,3 +49,9 @@ jobs:
 
       - name: E2E — 5대 대표 시나리오
         run: npx tsx scripts/run-5-scenarios.ts
+
+      - name: Backend — REST 서버 (입력 검증·동시성·영속)
+        run: npx tsx scripts/backend-scenario.ts
+
+      - name: Backend — REST store 왕복 (낙관적 쓰기·롤백·폴백)
+        run: npx tsx scripts/rest-store-scenario.ts
