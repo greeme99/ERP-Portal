@@ -163,3 +163,8 @@ export const sopStore = createStore("scm.sop", [
   { id: "SOP-26W27", week: "2026-W27", status: "검토중", note: "주단위 S&OP 합의 진행중" },
   { id: "SOP-26W28", week: "2026-W28", status: "검토중", note: "" },
 ]);
+
+// SCM-001 품목별 AI 예측 파라미터 (튜닝 패널 저장값).
+// 행이 없으면 DEFAULT_PARAMS 를 쓴다 — 즉 "저장하지 않음 = 기본값"이다.
+// 품목마다 수요 패턴이 달라 파라미터를 품목 단위로 보관한다.
+export const forecastParamStore = createStore("scm.forecast_params", []);

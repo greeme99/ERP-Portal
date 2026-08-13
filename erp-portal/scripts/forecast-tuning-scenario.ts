@@ -124,5 +124,38 @@ console.log("\n[5] 자동 최적화");
   check(none === null, "이력이 부족하면 null 을 준다");
 }
 
+console.log("\n[6] 품목별 파라미터 저장 (영속화)");
+{
+  const { forecastParamStore } = await import("../src/data/mock/scm");
+  const savedFor = (material: string) => forecastParamStore.getAll().find((r) => r.material === material);
+
+  check(forecastParamStore.getAll().length === 0, "초기에는 저장된 파라미터가 없다 (= 기본값)");
+
+  forecastParamStore.create({ id: "FP-1", material: "FG-1001", ...normalizeParams({ alpha: 0.85, beta: 0.95 }) });
+  const row = savedFor("FG-1001");
+  check(!!row, "품목 파라미터를 저장한다");
+  check(row?.alpha === 0.85 && row?.beta === 0.95, "저장한 alpha/beta 가 보존된다", JSON.stringify(row));
+  check(savedFor("FG-1002") === undefined, "다른 품목은 영향받지 않는다 (품목별 분리)");
+
+  const withSaved = runAiStatisticalForecastEngine(history, 17, 8, row as never);
+  const withDefault = runAiStatisticalForecastEngine(history, 17, 8);
+  check(withSaved[0].ensembleAi !== withDefault[0].ensembleAi, "저장값이 예측 결과에 반영된다");
+
+  forecastParamStore.create({
+    id: "FP-2",
+    material: "FG-1003",
+    ...normalizeParams({ alpha: 9, wHoltWinters: 2, wMovingAverage: 1, wLinearRegression: 1 }),
+  });
+  const r3 = savedFor("FG-1003")!;
+  check(r3.alpha === 1, "저장 시 alpha 가 clamp 된다");
+  check(Math.abs(r3.wHoltWinters + r3.wMovingAverage + r3.wLinearRegression - 1) < 1e-9, "저장 시 가중치 합이 1이다");
+
+  forecastParamStore.update("FP-1", { alpha: 0.3 });
+  check(savedFor("FG-1001")?.alpha === 0.3, "저장값을 갱신할 수 있다");
+
+  forecastParamStore.remove(["FP-1"]);
+  check(savedFor("FG-1001") === undefined, "저장값을 삭제하면 기본값으로 돌아간다");
+}
+
 console.log(`\n═══ 결과: PASS ${pass} / FAIL ${fail} — ${fail === 0 ? "✅ 예측 튜닝 엔진 검증 성공" : "❌ 실패 있음"} ═══`);
 process.exit(fail === 0 ? 0 : 1);
