@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { campaignStore, roi, CP_STATUS_STYLE, CHANNELS } from "../../data/mock/marketing";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const eok = (v: number) => `${(v / 100000000).toFixed(2)}억`;
 
@@ -16,9 +17,9 @@ export default function CampaignManagement() {
 
   const toggle = (c: any) => campaignStore.update(c.id, { status: c.status === "진행" ? "종료" : "진행" });
 
-  const save = () => {
+  const save = async () => {
     if (!form.name.trim()) return alert("캠페인명을 입력하세요.");
-    const code = nextId("CP");
+    const code = await nextDocCode("CP", campaignStore.getAll().map((x) => String(x.code)));
     campaignStore.create({ id: code, code, name: form.name, channel: form.channel, budget: form.budget, spent: 0, revenue: 0, start: "2026-07-03", status: "진행" });
     setCreating(false);
     setForm({ name: "", channel: "온라인", budget: 50000000 });

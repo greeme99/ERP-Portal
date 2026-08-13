@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore } from "../../data/mock/master";
 import { ncStore, capaStore, D_STEPS, NC_STATUS_STYLE, SEVERITY_STYLE } from "../../data/mock/quality2";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -21,9 +22,9 @@ export default function Nonconformance() {
     ncStore.update(nc.id, { dStep: nc.dStep + 1, status: nc.dStep + 1 === 8 ? "종결" : "진행" });
   };
 
-  const issueCapa = () => {
+  const issueCapa = async () => {
     if (!nc) return;
-    const code = nextId("CAPA");
+    const code = await nextDocCode("CAPA", capaStore.getAll().map((x) => String(x.code)));
     capaStore.create({
       id: code, code, nc: nc.code, type: "시정조치", owner: "품질팀",
       action: "(작성 필요) 근본원인 기반 시정조치", dueDate: "2026-07-31", status: "진행", effectiveness: "-",

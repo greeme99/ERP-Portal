@@ -4,6 +4,7 @@ import { materialStore, bomStore } from "../../data/mock/master";
 import { woStore, WO_STYLE } from "../../data/mock/production";
 import { lotStore, txStore, newLotCode } from "../../data/mock/logistics";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -18,9 +19,9 @@ export default function WorkOrderPage() {
 
   const producible = mats.filter((m) => m.type === "완제품" || m.type === "반제품");
 
-  const create = () => {
+  const create = async () => {
     if (!form.material) return alert("생산 품목을 선택하세요.");
-    const code = nextId("WO");
+    const code = await nextDocCode("WO", wos.map((x) => String(x.code)));
     woStore.create({
       id: code, code, material: form.material, qty: form.qty,
       startDate: TODAY, dueDate: form.dueDate, status: "계획", good: 0, defect: 0,

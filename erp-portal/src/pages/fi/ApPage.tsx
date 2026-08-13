@@ -3,6 +3,7 @@ import { partnerStore } from "../../data/mock/master";
 import { poStore } from "../../data/mock/procurement";
 import { apStore } from "../../data/mock/finance";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -14,15 +15,16 @@ export default function ApPage() {
   const vendorName = (v: string) => partners.find((p) => p.code === v)?.name ?? v;
   const unbooked = pos.filter((o) => o.status === "입고완료" && !aps.some((a) => a.ref === o.code));
 
-  const sync = () => {
+  // 문서번호 채번이 비동기라 for...of 로 순차 발급한다 (번호가 겹치지 않게)
+  const sync = async () => {
     if (unbooked.length === 0) return alert("동기화할 입고완료 건이 없습니다.");
-    unbooked.forEach((o) => {
-      const code = nextId("AP");
+    for (const o of unbooked) {
+      const code = await nextDocCode("AP", apStore.getAll().map((x) => String(x.code)));
       apStore.create({
         id: code, code, ref: o.code, vendor: o.vendor, amount: o.qty * o.price,
         invoiceDate: TODAY, dueDate: "2026-08-31", status: "미지급",
       });
-    });
+    }
   };
 
   const pay = (ap: any) => {

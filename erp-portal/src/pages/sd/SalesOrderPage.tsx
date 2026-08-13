@@ -3,6 +3,7 @@ import { useState } from "react";
 import { customerStore, materialStore } from "../../data/mock/master";
 import { salesOrderStore, docTotal, atpQty, DocLine } from "../../data/mock/sales";
 import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 import { addVat, VAT_RATE } from "../../services/documentMath";
 
@@ -86,7 +87,7 @@ export default function SalesOrderPage() {
   const setLine = (i: number, patch: Partial<DocLine>) =>
     setForm((f) => ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
 
-  const save = () => {
+  const save = async () => {
     if (!form.customer) return alert("고객을 선택하세요.");
     if (form.lines.length === 0) return alert("품목 라인을 추가하세요.");
     // 신용한도 체크 (SD-001 연계)
@@ -100,7 +101,7 @@ export default function SalesOrderPage() {
     if (shortage.length > 0) {
       if (!confirm(`⚠️ ATP 부족 품목 ${shortage.length}건: ${shortage.map((l) => l.material).join(", ")}.\n납기 재협의 또는 생산계획 반영이 필요합니다. 등록할까요?`)) return;
     }
-    const code = nextId("SO");
+    const code = await nextDocCode("SO", orders.map((x) => String(x.code)));
     salesOrderStore.create({
       id: code, code, customer: form.customer,
       orderDate: new Date().toISOString().slice(0, 10),

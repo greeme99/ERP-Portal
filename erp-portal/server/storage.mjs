@@ -14,6 +14,13 @@ const SEQUENCE_START = 1000;
 const MAX_SEQUENCE = 999_999_999;
 const MAX_RESERVE = 10_000;
 
+// 문서번호 채번 — 문서유형·기간별로 구멍 없이 1씩 올린다.
+// (전표·발주서처럼 사용자에게 보이고 감사 대상이 되는 번호)
+const DOCNUM_FILE = "_docnumber.json";
+const DOCTYPE_PATTERN = /^[A-Z][A-Z0-9]{0,7}$/;
+const PERIOD_PATTERN = /^[0-9]{2,6}$/;
+const MAX_DOC_SEQ = 999_999;
+
 export function isValidKey(key) {
   return typeof key === "string" && KEY_PATTERN.test(key) && !key.includes("..");
 }
@@ -63,6 +70,23 @@ export function createStorage(dataDir) {
     } catch {
       return SEQUENCE_START;
     }
+  };
+
+  const readDocMap = async () => {
+    try {
+      const raw = await readFile(join(root, DOCNUM_FILE), "utf8");
+      const parsed = JSON.parse(raw);
+      return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const writeDocMap = async (map) => {
+    const target = join(root, DOCNUM_FILE);
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tmp, JSON.stringify(map), "utf8");
+    await rename(tmp, target);
   };
 
   const writeSequence = async (value) => {
@@ -153,6 +177,59 @@ export function createStorage(dataDir) {
       return serialize(SEQUENCE_FILE, async () => {
         const current = await readSequence();
         if (max > current) await writeSequence(max);
+      });
+    },
+
+    /**
+     * 문서번호를 하나 발급한다. 문서유형·기간 조합별로 1씩 증가하며 구멍이 없다.
+     * 쓰기가 직렬화되므로 동시 요청에도 같은 번호가 두 번 나가지 않는다.
+     */
+    nextDocNumber(docType, period) {
+      if (!DOCTYPE_PATTERN.test(String(docType))) {
+        throw Object.assign(new Error("허용되지 않은 문서유형입니다."), { status: 400 });
+      }
+      if (!PERIOD_PATTERN.test(String(period))) {
+        throw Object.assign(new Error("허용되지 않은 기간입니다."), { status: 400 });
+      }
+      const mapKey = `${docType}:${period}`;
+      return serialize(DOCNUM_FILE, async () => {
+        const map = await readDocMap();
+        const current = Number(map[mapKey]);
+        const base = Number.isSafeInteger(current) && current >= 0 ? current : 0;
+        if (base >= MAX_DOC_SEQ) throw Object.assign(new Error("문서번호가 상한에 도달했습니다."), { status: 507 });
+        const seq = base + 1;
+        map[mapKey] = seq;
+        await writeDocMap(map);
+        return { docType, period, seq, number: `${docType}-${period}${String(seq).padStart(3, "0")}` };
+      });
+    },
+
+    /**
+     * 저장되는 행의 code 에서 문서번호를 관찰해 수위를 올린다.
+     * seed 나 다른 경로로 들어온 번호와 겹치지 않게 한다.
+     */
+    observeDocNumbers(rows) {
+      const highest = new Map();
+      for (const row of rows) {
+        const m = /^([A-Z][A-Z0-9]{0,7})-([0-9]{2})([0-9]{3,6})$/.exec(String(row?.code ?? ""));
+        if (!m) continue;
+        const mapKey = `${m[1]}:${m[2]}`;
+        const seq = Number(m[3]);
+        if (!Number.isSafeInteger(seq) || seq > MAX_DOC_SEQ) continue;
+        highest.set(mapKey, Math.max(highest.get(mapKey) ?? 0, seq));
+      }
+      if (highest.size === 0) return Promise.resolve();
+      return serialize(DOCNUM_FILE, async () => {
+        const map = await readDocMap();
+        let changed = false;
+        for (const [mapKey, seq] of highest) {
+          const current = Number(map[mapKey]) || 0;
+          if (seq > current) {
+            map[mapKey] = seq;
+            changed = true;
+          }
+        }
+        if (changed) await writeDocMap(map);
       });
     },
 

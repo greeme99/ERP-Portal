@@ -101,6 +101,17 @@ async function route(req, res, url) {
     }
   }
 
+  // 문서번호 채번 — 문서유형·기간별 무결번. 전표·발주서 등 감사 대상 번호에 쓴다.
+  if (segments[1] === "docnumber" && segments[2] === "next" && req.method === "POST") {
+    const body = await readBody(req);
+    try {
+      const issued = await storage.nextDocNumber(String(body?.docType ?? ""), String(body?.period ?? ""));
+      return send(res, 200, { ok: true, ...issued });
+    } catch (error) {
+      return fail(res, error.status ?? 500, error.message);
+    }
+  }
+
   if (segments[1] !== "entities") return fail(res, 404, "알 수 없는 경로입니다.");
 
   const key = segments[2];
@@ -119,6 +130,7 @@ async function route(req, res, url) {
     if (invalid) return fail(res, 400, invalid);
     const saved = await storage.write(key, body.data);
     await storage.observeIds(saved);
+    await storage.observeDocNumbers(saved);
     return send(res, 200, { ok: true, data: saved });
   }
 
@@ -135,6 +147,7 @@ async function route(req, res, url) {
         return [row, ...current];
       });
       await storage.observeIds([row]);
+      await storage.observeDocNumbers([row]);
       return send(res, 201, { ok: true, data: next });
     } catch (error) {
       return fail(res, error.status ?? 500, error.message);

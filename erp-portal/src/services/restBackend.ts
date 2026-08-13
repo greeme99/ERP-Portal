@@ -64,6 +64,31 @@ function setStatus(next: BackendStatus) {
 }
 
 /**
+ * 문서번호를 서버에서 채번한다. 문서유형·기간별로 구멍 없이 증가한다.
+ * 서버에 닿지 못하면 null 을 주고 호출자가 로컬 계산으로 폴백한다.
+ */
+export async function requestDocNumber(
+  docType: string,
+  period: string
+): Promise<{ number: string; seq: number } | null> {
+  if (!BASE_URL) return null;
+  try {
+    const res = await fetch(`${BASE_URL}/api/docnumber/next`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ docType, period }),
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body?.number === "string" && Number.isSafeInteger(body?.seq)
+      ? { number: body.number, seq: body.seq }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 앱 시작 시 1회 호출한다. store 가 155개라 키별 GET 대신 스냅샷 하나로 받는다.
  * 서버에 닿지 못하면 localStorage 모드로 남고 화면은 그대로 동작한다.
  */

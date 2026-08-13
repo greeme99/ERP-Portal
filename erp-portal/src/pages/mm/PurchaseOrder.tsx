@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore, partnerStore } from "../../data/mock/master";
 import { prStore, poStore } from "../../data/mock/procurement";
 import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 import { addVat, VAT_RATE } from "../../services/documentMath";
 
@@ -33,10 +34,10 @@ export default function PurchaseOrder() {
     setForm({ ...form, pr: code, material: pr.material, qty: pr.qty, price: mat?.price ?? 0, dueDate: pr.dueDate });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.vendor) return alert("공급사를 배정하세요.");
     if (!form.material) return alert("품목을 선택하세요.");
-    const code = nextId("PO");
+    const code = await nextDocCode("PO", pos.map((x) => String(x.code)));
     poStore.create({
       id: code, code, pr: form.pr || "-", vendor: form.vendor, material: form.material,
       qty: form.qty, price: form.price, orderDate: TODAY, dueDate: form.dueDate, status: "발주",

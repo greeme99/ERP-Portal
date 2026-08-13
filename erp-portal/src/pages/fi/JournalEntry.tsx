@@ -4,6 +4,7 @@ import { salesOrderStore, docTotal, DocLine } from "../../data/mock/sales";
 import { poStore } from "../../data/mock/procurement";
 import { journalStore, jvBalanced, ACCOUNTS, JLine } from "../../data/mock/finance";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -27,11 +28,12 @@ export default function JournalEntry() {
   const unbookedSo = sos.filter((o) => o.status === "출하완료" && !jvs.some((j) => j.ref === o.code));
   const unbookedPo = pos.filter((o) => o.status === "입고완료" && !jvs.some((j) => j.ref === o.code));
 
-  const sync = () => {
+  // 문서번호 채번이 비동기라 for...of 로 순차 발급한다 (전표번호가 겹치지 않게)
+  const sync = async () => {
     if (unbookedSo.length + unbookedPo.length === 0) return alert("동기화할 거래가 없습니다.");
-    unbookedSo.forEach((o) => {
+    for (const o of unbookedSo) {
       const amt = docTotal(o.lines as DocLine[]);
-      const code = nextId("JV");
+      const code = await nextDocCode("JV", journalStore.getAll().map((x) => String(x.code)));
       journalStore.create({
         id: code, code, date: TODAY, desc: `매출 인식 (${o.customer})`, ref: o.code, status: "작성",
         lines: [
@@ -39,10 +41,10 @@ export default function JournalEntry() {
           { account: "제품매출", dr: 0, cr: amt },
         ] as JLine[],
       });
-    });
-    unbookedPo.forEach((o) => {
+    }
+    for (const o of unbookedPo) {
       const amt = o.qty * o.price;
-      const code = nextId("JV");
+      const code = await nextDocCode("JV", journalStore.getAll().map((x) => String(x.code)));
       journalStore.create({
         id: code, code, date: TODAY, desc: `원재료 매입 (${o.vendor})`, ref: o.code, status: "작성",
         lines: [
@@ -50,7 +52,7 @@ export default function JournalEntry() {
           { account: "외상매입금", dr: 0, cr: amt },
         ] as JLine[],
       });
-    });
+    }
   };
 
   const setLine = (i: number, patch: Partial<JLine>) =>
@@ -58,10 +60,10 @@ export default function JournalEntry() {
 
   const bal = jvBalanced(lines);
 
-  const save = () => {
+  const save = async () => {
     if (!desc.trim()) return alert("적요를 입력하세요.");
     if (!bal.ok) return alert(`차대 불일치: 차변 ${bal.dr.toLocaleString()} / 대변 ${bal.cr.toLocaleString()}`);
-    const code = nextId("JV");
+    const code = await nextDocCode("JV", journalStore.getAll().map((x) => String(x.code)));
     journalStore.create({ id: code, code, date: TODAY, desc, ref: "-", status: "작성", lines });
     setCreating(false);
     setDesc("");

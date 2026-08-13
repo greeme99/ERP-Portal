@@ -3,6 +3,7 @@ import { useState } from "react";
 import { customerStore, materialStore } from "../../data/mock/master";
 import { quotationStore, docTotal, DocLine } from "../../data/mock/sales";
 import { Entity, useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const STATUS_STYLE: Record<string, string> = {
   작성: "bg-amber-100 text-amber-700",
@@ -26,10 +27,10 @@ export default function QuotationPage() {
   const setLine = (i: number, patch: Partial<DocLine>) =>
     setForm((f) => ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
 
-  const save = () => {
+  const save = async () => {
     if (!form.customer) return alert("고객을 선택하세요.");
     if (form.lines.length === 0) return alert("품목 라인을 추가하세요.");
-    const code = nextId("QT");
+    const code = await nextDocCode("QT", docs.map((x) => String(x.code)));
     const today = new Date().toISOString().slice(0, 10);
     quotationStore.create({
       id: code, code, customer: form.customer, date: today,

@@ -3,6 +3,7 @@ import { materialStore } from "../../data/mock/master";
 import { lotStore } from "../../data/mock/logistics";
 import { inspStore, sampleSize, acceptLimit } from "../../data/mock/quality";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -23,15 +24,16 @@ export default function IncomingInspection() {
       !insps.some((i) => i.lot === l.code)
   );
 
-  const sync = () => {
+  // 문서번호 채번이 비동기라 for...of 로 순차 발급한다 (번호가 겹치지 않게)
+  const sync = async () => {
     if (uninspected.length === 0) return alert("검사 대상 신규 LOT이 없습니다.");
-    uninspected.forEach((l) => {
-      const code = nextId("IQ");
+    for (const l of uninspected) {
+      const code = await nextDocCode("IQ", inspStore.getAll().map((x) => String(x.code)));
       inspStore.create({
         id: code, code, lot: l.code, material: l.material, vendor: l.vendor,
         qty: l.qty, sample: sampleSize(l.qty), defects: 0, result: "대기", date: "-",
       });
-    });
+    }
   };
 
   const judge = (insp: any, defects: number) => {

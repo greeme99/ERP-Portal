@@ -3,6 +3,7 @@ import { materialStore, customerStore } from "../../data/mock/master";
 import { salesOrderStore, DocLine } from "../../data/mock/sales";
 import { warrantyStore, addMonths, WARRANTY_STYLE, TODAY } from "../../data/mock/service";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 export default function WarrantyPage() {
   const warranties = useStore(warrantyStore);
@@ -17,18 +18,19 @@ export default function WarrantyPage() {
   const delivered = orders.filter((o) => o.status === "출하완료");
   const unregistered = delivered.filter((o) => !warranties.some((w) => w.ref === o.code));
 
-  const sync = () => {
+  // 문서번호 채번이 비동기라 for...of 로 순차 발급한다 (번호가 겹치지 않게)
+  const sync = async () => {
     if (unregistered.length === 0) return alert("보증 등록할 출하완료 건이 없습니다.");
-    unregistered.forEach((o) => {
-      (o.lines as DocLine[]).filter((l) => l.material.startsWith("FG-")).forEach((l) => {
-        const code = nextId("W");
+    for (const o of unregistered) {
+      for (const l of (o.lines as DocLine[]).filter((x) => x.material.startsWith("FG-"))) {
+        const code = await nextDocCode("W", warrantyStore.getAll().map((x) => String(x.code)));
         const expiry = addMonths(o.orderDate, 12);
         warrantyStore.create({
           id: code, code, ref: o.code, material: l.material, customer: o.customer,
           shipDate: o.orderDate, months: 12, expiry, status: expiry >= TODAY ? "유효" : "만료",
         });
-      });
-    });
+      }
+    }
   };
 
   // 만료 상태 실시간 재계산

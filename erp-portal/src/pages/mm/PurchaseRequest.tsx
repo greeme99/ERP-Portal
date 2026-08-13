@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore } from "../../data/mock/master";
 import { budgetStore, prStore } from "../../data/mock/procurement";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const STATUS_STYLE: Record<string, string> = {
   승인대기: "bg-amber-100 text-amber-700",
@@ -23,10 +24,10 @@ export default function PurchaseRequest() {
   const remain = budget ? budget.budget - budget.used : 0;
   const over = amount > remain;
 
-  const save = () => {
+  const save = async () => {
     if (!form.material) return alert("품목을 선택하세요.");
     if (over && !confirm(`⚠️ 예산 초과: ${form.dept} 잔여 ${remain.toLocaleString()}원 < 요청 ${amount.toLocaleString()}원.\n예산 초과 승인 절차로 진행할까요?`)) return;
-    const code = nextId("PR");
+    const code = await nextDocCode("PR", prs.map((x) => String(x.code)));
     prStore.create({
       id: code, code, dept: form.dept, material: form.material, qty: form.qty,
       amount, reqDate: new Date().toISOString().slice(0, 10), dueDate: form.dueDate, status: "승인대기",

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore } from "../../data/mock/master";
 import { drawingStore, nextRev, DWG_STATUS_STYLE } from "../../data/mock/pdm";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -24,10 +25,10 @@ export default function DrawingManagement() {
     drawingStore.update(d.id, { status: "폐기", date: TODAY });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.material) return alert("품목을 선택하세요.");
     if (!form.name.trim()) return alert("도면명을 입력하세요.");
-    const code = nextId("DWG");
+    const code = await nextDocCode("DWG", drawingStore.getAll().map((x) => String(x.code)));
     drawingStore.create({ id: code, code, material: form.material, name: form.name, rev: "A", status: "작성", eco: "-", date: TODAY });
     setCreating(false);
     setForm({ material: "", name: "" });

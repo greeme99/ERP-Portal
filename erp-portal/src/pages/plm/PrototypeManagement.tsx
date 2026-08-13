@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore } from "../../data/mock/master";
 import { prototypeStore, PT_STATUS_STYLE } from "../../data/mock/pdm";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -21,10 +22,10 @@ export default function PrototypeManagement() {
     prototypeStore.update(p.id, { result, note });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.material) return alert("품목을 선택하세요.");
     if (!form.purpose.trim()) return alert("제작 목적을 입력하세요.");
-    const code = nextId("PT");
+    const code = await nextDocCode("PT", prototypeStore.getAll().map((x) => String(x.code)));
     prototypeStore.create({ id: code, code, material: form.material, purpose: form.purpose, qty: form.qty, buildDate: TODAY, result: "진행", note: "" });
     setCreating(false);
     setForm({ material: "", purpose: "", qty: 3 });
