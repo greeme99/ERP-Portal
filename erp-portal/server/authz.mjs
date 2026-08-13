@@ -36,7 +36,7 @@ const KEY_PREFIX_MODULE = [
   ["dashboard.", "com"],
 ];
 
-const PERM_ORDER = ["없음", "조회", "편집", "승인"];
+export const PERM_ORDER = ["없음", "조회", "편집", "승인"];
 const ADMIN_ROLE = "관리자";
 
 export function moduleForKey(key) {

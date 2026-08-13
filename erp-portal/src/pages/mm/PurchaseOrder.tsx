@@ -52,7 +52,7 @@ export default function PurchaseOrder() {
     );
     if (!exits.ok) return alert(`User Exit 검증 실패 — 저장을 중단했습니다.\n\n${exits.messages.join("\n")}`);
     if (exits.messages.length > 0 && !confirm(`${exits.messages.join("\n")}\n\n계속 발주할까요?`)) return;
-    if (exits.bypassed.length > 0) console.warn("[User Exit] 권한 미충족으로 바이패스:", exits.bypassed);
+    if (exits.blocked.length > 0) console.warn("[User Exit] 예외승인 권한 없어 차단:", exits.blocked);
 
     const code = await nextDocCode("PO", pos.map((x) => String(x.code)));
     poStore.create({
