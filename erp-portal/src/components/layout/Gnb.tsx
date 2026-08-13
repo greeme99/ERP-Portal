@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
 import { MODULES } from "../../data/menu";
+import { useAuthz } from "../../services/authz";
 
 export default function Gnb() {
   const { moduleId } = useParams();
+  const authz = useAuthz();
+  // 권한이 "없음"인 모듈은 메뉴에서 감춘다
+  const visibleModules = MODULES.filter((m) => authz.canView(m.id));
   const [open, setOpen] = useState<Record<string, boolean>>(
     moduleId ? { [moduleId]: true } : {}
   );
@@ -24,7 +28,7 @@ export default function Gnb() {
         🏠 메인 포탈
       </NavLink>
       <nav className="py-1">
-        {MODULES.map((m) => (
+        {visibleModules.map((m) => (
           <div key={m.id}>
             <button
               onClick={() => toggle(m.id)}

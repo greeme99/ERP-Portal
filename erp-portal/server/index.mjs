@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createStorage, isValidKey, validateEntities } from "./storage.mjs";
+import { checkAuthz, identityFromHeaders } from "./authz.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 5177);
@@ -31,7 +32,7 @@ function applyCors(req, res) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-ERP-User-Id, X-ERP-User-Role, X-ERP-User-Status");
     res.setHeader("Access-Control-Max-Age", "600");
   }
 }
@@ -118,6 +119,15 @@ async function route(req, res, url) {
   if (!isValidKey(key)) return fail(res, 400, "허용되지 않은 저장 키입니다.");
   const rowId = segments[3] ? asId(decodeURIComponent(segments[3])) : null;
   if (segments[3] && !rowId) return fail(res, 400, "허용되지 않은 id 입니다.");
+
+  // 서버측 인가 재검증 — 클라이언트 우회로 인한 오조작을 막는다.
+  // (인증이 없어 신원 헤더는 위조 가능하므로 암호학적 경계는 아니다)
+  if (req.method !== "GET") {
+    const identity = identityFromHeaders(req.headers);
+    const permissionRows = (await storage.read("platform.permission")) ?? [];
+    const verdict = checkAuthz({ identity, permissionRows, key, method: req.method });
+    if (!verdict.allowed) return fail(res, 403, `권한이 없습니다: ${verdict.reason}`);
+  }
 
   if (req.method === "GET" && !rowId) {
     return send(res, 200, { ok: true, data: (await storage.read(key)) ?? [] });

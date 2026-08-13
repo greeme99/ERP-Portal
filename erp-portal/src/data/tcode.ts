@@ -208,6 +208,7 @@ export const ALL_TCODES: TCodeItem[] = [
   { tcode: "COM-24", sapTcode: "TZ01", name: "글로벌 타임존 관리", path: "/m/com/com-24", module: "공통/플랫폼", moduleId: "com" },
   { tcode: "COM-25", sapTcode: "RETENTION", name: "데이터 보존 정책", path: "/m/com/com-25", module: "공통/플랫폼", moduleId: "com" },
   { tcode: "COM-26", sapTcode: "LIC01", name: "라이선스 및 구독 관리", path: "/m/com/com-26", module: "공통/플랫폼", moduleId: "com" },
+  { tcode: "COM-27", sapTcode: "CMOD", name: "User Exit 관리", path: "/m/com/com-27", module: "공통/플랫폼", moduleId: "com", desc: "표준 로직 확장 훅 · 권한 기반 활성/바이패스" },
 
   // ── 14. 경영분석 대시보드 (EIS) ──
   { tcode: "EIS-01", sapTcode: "ZKPI01", name: "경영 KPI 대시보드", path: "/executive-kpi", module: "경영분석", moduleId: "eis" },

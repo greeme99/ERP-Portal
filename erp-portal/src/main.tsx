@@ -3,7 +3,9 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
-import { bootstrapBackend, isRestConfigured } from "./services/restBackend";
+import { bootstrapBackend, isRestConfigured, setIdentityProvider } from "./services/restBackend";
+import { getCurrentUser } from "./services/session";
+import { registerDefaultUserExits } from "./services/userExitDefaults";
 import { hydrateFromBackend, primeIdBlock, setWriteFailureHandler } from "./services/store";
 
 const render = () =>
@@ -14,6 +16,12 @@ const render = () =>
       </HashRouter>
     </React.StrictMode>
   );
+
+// 서버 인가 재검증용 신원 제공자 주입 (순환 import 회피)
+setIdentityProvider(getCurrentUser);
+
+// 기본 User Exit 등록 — 권한에 따라 활성/바이패스된다
+registerDefaultUserExits();
 
 setWriteFailureHandler((message) => {
   console.error(`[ERP store] ${message}`);

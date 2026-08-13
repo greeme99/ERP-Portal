@@ -170,6 +170,7 @@ import DataBackupRecovery from "./pages/com/DataBackupRecovery";
 import GlobalTimezoneMaster from "./pages/com/GlobalTimezoneMaster";
 import DataRetentionPolicy from "./pages/com/DataRetentionPolicy";
 import LicenseSubscriptionManagement from "./pages/com/LicenseSubscriptionManagement";
+import UserExitRegistry from "./pages/com/UserExitRegistry";
 // MK
 import MarketingStrategy from "./pages/mk/MarketingStrategy";
 import CompetitorAnalysis from "./pages/mk/CompetitorAnalysis";
@@ -347,6 +348,7 @@ export default function App() {
         <Route path="/m/com/com-24" element={<GlobalTimezoneMaster />} />
         <Route path="/m/com/com-25" element={<DataRetentionPolicy />} />
         <Route path="/m/com/com-26" element={<LicenseSubscriptionManagement />} />
+        <Route path="/m/com/com-27" element={<UserExitRegistry />} />
         <Route path="/m/mk/mk-01" element={<MarketingStrategy />} />
         <Route path="/m/mk/mk-02" element={<CompetitorAnalysis />} />
         <Route path="/m/mk/mk-03" element={<ChannelAnalytics />} />

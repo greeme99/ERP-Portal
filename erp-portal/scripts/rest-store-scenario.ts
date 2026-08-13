@@ -157,6 +157,41 @@ console.log("\n[5] 서버 발급 ID — 클라이언트 간 충돌 방지");
   check(collisions.length === 0, "두 클라이언트의 id 가 전혀 겹치지 않는다", `충돌 ${collisions.length}건: ${collisions.slice(0, 3)}`);
 }
 
+console.log("\n[5-2] 서버에 없는 키를 수정해도 데이터가 사라지지 않는다 (회귀)");
+{
+  // seed 는 클라이언트에만 있고 서버에는 키가 없는 상태. 예전에는 단건 PATCH 가
+  // 404 를 받아 롤백이 빈 배열을 가져와 seed 가 전부 삭제됐다.
+  const store = storeMod.createStore("regress.seedonly", [
+    { id: "R-1", role: "영업", level: "조회" },
+    { id: "R-2", role: "구매", level: "편집" },
+  ]);
+  await backend.bootstrapBackend();
+  storeMod.hydrateFromBackend();
+
+  const messages: string[] = [];
+  storeMod.setWriteFailureHandler((m) => messages.push(m));
+
+  store.update("R-1", { level: "승인" });
+  await backend.remote.drain();
+  await new Promise((r) => setTimeout(r, 200));
+
+  check(store.getAll().length === 2, "행이 사라지지 않는다", JSON.stringify(store.getAll()));
+  check(store.getAll().find((r) => r.id === "R-1")?.level === "승인", "수정이 유지된다");
+  check(messages.length === 0, "실패 통지가 발생하지 않는다", JSON.stringify(messages));
+
+  const saved = await (await fetch(`${base}/api/entities/regress.seedonly`)).json();
+  check(saved.data.length === 2, "서버에 seed 전체가 생성된다", `count=${saved.data.length}`);
+  check(saved.data.find((r: any) => r.id === "R-1")?.level === "승인", "서버에도 수정이 반영된다");
+
+  store.update("R-2", { level: "승인" });
+  await backend.remote.drain();
+  const after = await (await fetch(`${base}/api/entities/regress.seedonly`)).json();
+  check(after.data.find((r: any) => r.id === "R-2")?.level === "승인", "이후 단건 수정도 반영된다");
+  check(messages.length === 0, "이후에도 실패가 없다", JSON.stringify(messages));
+
+  storeMod.setWriteFailureHandler((m) => console.error(`[ERP store] ${m}`));
+}
+
 console.log("\n[6] 서버가 없으면 localStorage/메모리 모드로 폴백한다");
 {
   server.close();

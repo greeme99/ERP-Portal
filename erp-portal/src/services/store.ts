@@ -240,6 +240,12 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
   // REST 모드에서는 서버가 진실이므로 localStorage 에 쓰지 않는다.
   // (두 저장소가 서로 다른 상태를 갖는 것을 막는다)
   const isRest = () => Boolean(storageKey) && getBackendStatus() === "rest";
+
+  // 서버가 이 키를 이미 알고 있는가.
+  // seed 는 클라이언트에만 있으므로, 서버에 키가 없는 상태에서 단건 PATCH/DELETE 를
+  // 보내면 서버가 대상을 못 찾아 404 를 내고 롤백이 빈 배열을 가져와 데이터가 사라진다.
+  // 첫 쓰기는 전체 배열을 PUT 해 키를 생성하고, 이후에는 단건으로 보낸다.
+  let serverKnowsKey = false;
   const persist = () => {
     if (!isRest() && persistenceEnabled && storage && fullKey) {
       writePersisted(storage, fullKey, data);
@@ -255,6 +261,20 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
       emit();
     }
     writeFailureHandler(`${action} 저장에 실패해 서버 상태로 되돌렸습니다: ${error.message}`);
+  };
+
+  // 서버가 키를 모르면 전체를 PUT 해 만들고, 알고 있으면 단건 요청을 보낸다.
+  const sendWrite = (action: string, granular: () => void) => {
+    if (!isRest() || !storageKey) return;
+    if (!serverKnowsKey) {
+      serverKnowsKey = true;
+      remote.replaceAll(storageKey, data, (error) => {
+        serverKnowsKey = false;
+        rollback(action)(error);
+      });
+      return;
+    }
+    granular();
   };
 
   const store: EntityStore = {
@@ -274,7 +294,7 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
       data = [created, ...data];
       persist();
       emit();
-      if (isRest() && storageKey) remote.createRow(storageKey, created, rollback("신규 등록"));
+      sendWrite("신규 등록", () => remote.createRow(storageKey!, created, rollback("신규 등록")));
       return created;
     },
     update(id, patch) {
@@ -282,26 +302,30 @@ export function createStore(initialOrKey: Entity[] | string, keyedInitial?: Enti
       data = data.map((r) => (r.id === id ? { ...r, ...safePatch, id } : r));
       persist();
       emit();
-      if (isRest() && storageKey) remote.updateRow(storageKey, id, safePatch, rollback("수정"));
+      sendWrite("수정", () => remote.updateRow(storageKey!, id, safePatch, rollback("수정")));
     },
     remove(ids) {
       data = data.filter((r) => !ids.includes(r.id));
       persist();
       emit();
-      if (isRest() && storageKey) remote.removeRows(storageKey, ids, rollback("삭제"));
+      sendWrite("삭제", () => remote.removeRows(storageKey!, ids, rollback("삭제")));
     },
     replaceAll(rows) {
       data = [...rows];
       observeEntitySequences(data);
       persist();
       emit();
-      if (isRest() && storageKey) remote.replaceAll(storageKey, data, rollback("일괄 반영"));
+      if (isRest() && storageKey) {
+        serverKnowsKey = true;
+        remote.replaceAll(storageKey, data, rollback("일괄 반영"));
+      }
     },
   };
 
   // 서버 스냅샷 주입 경로 — 부트스트랩 시 hydrateFromBackend() 가 호출한다.
   if (storageKey) {
     keyedStores.set(storageKey, (rows) => {
+      serverKnowsKey = true; // 스냅샷에 있었다 = 서버가 이 키를 알고 있다
       data = [...rows];
       observeEntitySequences(data);
       emit();

@@ -6,6 +6,8 @@ import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
 import { nextDocCode } from "../../services/docNumber";
 import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 import { addVat, VAT_RATE } from "../../services/documentMath";
+import { useModuleAuthz } from "../../services/authz";
+import { runUserExits } from "../../services/userExit";
 
 const TODAY = "2026-07-03";
 
@@ -22,6 +24,7 @@ export default function PurchaseOrder() {
   const mats = useStore(materialStore);
   const [creating, setCreating] = useState(false);
   const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
+  const authz = useModuleAuthz();
   const [form, setForm] = useState({ pr: "", vendor: "", material: "", qty: 1000, price: 0, dueDate: "2026-07-31" });
 
   // PO 미생성 승인 PR
@@ -37,6 +40,20 @@ export default function PurchaseOrder() {
   const save = async () => {
     if (!form.vendor) return alert("공급사를 배정하세요.");
     if (!form.material) return alert("품목을 선택하세요.");
+
+    // 발주 승인한도 검사 — User Exit. 구매 편집 권한이 없으면 바이패스된다.
+    const exits = runUserExits(
+      "mm.po.beforeSave",
+      {
+        user: authz.user,
+        document: { amount: form.qty * form.price, vendor: form.vendor, material: form.material },
+      },
+      authz.can
+    );
+    if (!exits.ok) return alert(`User Exit 검증 실패 — 저장을 중단했습니다.\n\n${exits.messages.join("\n")}`);
+    if (exits.messages.length > 0 && !confirm(`${exits.messages.join("\n")}\n\n계속 발주할까요?`)) return;
+    if (exits.bypassed.length > 0) console.warn("[User Exit] 권한 미충족으로 바이패스:", exits.bypassed);
+
     const code = await nextDocCode("PO", pos.map((x) => String(x.code)));
     poStore.create({
       id: code, code, pr: form.pr || "-", vendor: form.vendor, material: form.material,
@@ -130,7 +147,14 @@ export default function PurchaseOrder() {
           </span>
         )}
         <div className="ml-auto flex gap-1">
-          <button onClick={() => setCreating(true)} className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold">＋ 발주 생성</button>
+          <button
+            onClick={() => setCreating(true)}
+            disabled={!authz.canEditHere}
+            title={authz.canEditHere ? "" : "구매 모듈 편집 권한이 없습니다."}
+            className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ＋ 발주 생성
+          </button>
           <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">📥 Excel</button>
         </div>
       </div>

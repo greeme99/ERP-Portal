@@ -2,6 +2,7 @@
 import { ReactNode, useMemo, useState } from "react";
 import { Entity, EntityStore, useStore } from "../../services/store";
 import MassUpdateBar from "./MassUpdateBar";
+import { useModuleAuthz } from "../../services/authz";
 
 export interface FieldDef {
   key: string;
@@ -29,6 +30,7 @@ interface Props {
 
 export default function MasterCrudPage({ moduleLabel, title, store, fields, newRow, searchKeys, keyField, keyOf, keyLabel, validateRow }: Props) {
   const rows = useStore(store);
+  const authz = useModuleAuthz();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [editing, setEditing] = useState<Entity | null>(null);
@@ -90,11 +92,20 @@ export default function MasterCrudPage({ moduleLabel, title, store, fields, newR
         <div className="ml-auto flex gap-1">
           <button
             onClick={() => { setEditing(newRow()); setIsNew(true); }}
-            className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold"
+            disabled={!authz.canEditHere}
+            title={authz.canEditHere ? "" : "이 모듈에 편집 권한이 없습니다."}
+            className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ＋ 신규
           </button>
-          <button onClick={remove} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">🗑 삭제</button>
+          <button
+            onClick={remove}
+            disabled={!authz.canApproveHere}
+            title={authz.canApproveHere ? "" : "삭제는 승인 권한이 필요합니다."}
+            className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            🗑 삭제
+          </button>
           <MassUpdateBar
             title={title}
             store={store}
@@ -126,9 +137,9 @@ export default function MasterCrudPage({ moduleLabel, title, store, fields, newR
             {filtered.map((r) => (
               <tr
                 key={r.id}
-                onDoubleClick={() => { setEditing({ ...r }); setIsNew(false); }}
+                onDoubleClick={() => { if (authz.canEditHere) { setEditing({ ...r }); setIsNew(false); } }}
                 className="border-b border-line last:border-0 hover:bg-accent-soft cursor-pointer"
-                title="더블클릭: 수정"
+                title={authz.canEditHere ? "더블클릭: 수정" : "편집 권한이 없어 수정할 수 없습니다."}
               >
                 <td className="px-3 py-2">
                   <input type="checkbox" checked={selected.includes(r.id)} onChange={() => toggle(r.id)} onClick={(e) => e.stopPropagation()} />

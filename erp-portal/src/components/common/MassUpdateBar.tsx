@@ -1,6 +1,7 @@
 // 기준정보 일괄 유지보수 공통 바 — 조건 필터가 적용된 다운로드 + 같은 양식 재업로드(Upsert)
 import { useRef, useState } from "react";
 import { Entity, EntityStore, downloadCsv, readCsvFile } from "../../services/store";
+import { useModuleAuthz } from "../../services/authz";
 
 export interface MassColumn {
   key: string;
@@ -33,6 +34,7 @@ interface UploadPlan {
 }
 
 export default function MassUpdateBar({ title, store, rows, columns, newRow, keyKey, keyOf, keyLabel, filename, validateRow }: Props) {
+  const authz = useModuleAuthz();
   const [plan, setPlan] = useState<UploadPlan | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -155,8 +157,13 @@ export default function MassUpdateBar({ title, store, rows, columns, newRow, key
       </button>
       <button
         onClick={() => fileRef.current?.click()}
-        title={`다운로드한 CSV 를 수정해 올리면 ${label} 기준으로 일괄 반영합니다.`}
-        className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft"
+        disabled={!authz.canEditHere}
+        title={
+          authz.canEditHere
+            ? `다운로드한 CSV 를 수정해 올리면 ${label} 기준으로 일괄 반영합니다.`
+            : "이 모듈에 편집 권한이 없어 업로드할 수 없습니다."
+        }
+        className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft disabled:opacity-40 disabled:cursor-not-allowed"
       >
         📤 일괄 업로드
       </button>
