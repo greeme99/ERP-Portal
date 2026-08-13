@@ -233,7 +233,7 @@ export default function PrintableDocument({ doc, onDone }: Props) {
         )}
 
         <p className="mt-5 text-center text-[9px] text-slate-500">
-          본 문서는 표준 ERP 포탈에서 발행되었습니다. (프로토타입 · 합성 데이터)
+          본 문서는 AX-ERP Portal 에서 발행되었습니다. (프로토타입 · 합성 데이터)
         </p>
       </div>
     </div>,

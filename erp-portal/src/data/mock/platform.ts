@@ -8,7 +8,7 @@ export const PERM_LEVELS = ["없음", "조회", "편집", "승인"];
 
 // ── 사용자 ───────────────────────────────────────
 export const userStore = createStore("platform.user", [
-  { id: "U-1001", code: "10001", name: "문규", dept: "AX Lab", role: "관리자", email: "harry.kim@ax.samsung.com", status: "활성" },
+  { id: "U-1001", code: "10001", name: "문규", dept: "AX Lab", role: "관리자", email: "greeme99@gmail.com", status: "활성" },
   { id: "U-1002", code: "10002", name: "김영업", dept: "영업팀", role: "영업", email: "sales.kim@company.com", status: "활성" },
   { id: "U-1003", code: "10003", name: "박구매", dept: "구매팀", role: "구매", email: "buyer.park@company.com", status: "활성" },
   { id: "U-1004", code: "10004", name: "이생산", dept: "생산팀", role: "생산", email: "prod.lee@company.com", status: "활성" },

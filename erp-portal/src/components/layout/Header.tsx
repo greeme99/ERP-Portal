@@ -105,7 +105,7 @@ export default function Header({
         className="font-bold text-accent whitespace-nowrap cursor-pointer hover:opacity-80 transition-opacity ml-1"
         onClick={() => navigate("/")}
       >
-        표준 ERP 포탈
+        AX-ERP Portal
       </span>
       <span className="text-[11px] text-sub hidden md:block">
         소형가전·전자부품 제조 Standard ERP

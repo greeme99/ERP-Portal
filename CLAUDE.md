@@ -51,6 +51,9 @@ npx.cmd tsx scripts/store-persistence-scenario.ts
 npx.cmd tsx scripts/e2e-scenario.ts
 npx.cmd tsx scripts/run-5-scenarios.ts
 
+# authz (인증·인가 + User Exit)
+npx.cmd tsx scripts/authz-scenario.ts
+
 # doc number (문서번호 채번)
 npx.cmd tsx scripts/doc-number-scenario.ts
 

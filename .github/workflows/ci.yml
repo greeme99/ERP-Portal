@@ -50,6 +50,9 @@ jobs:
       - name: E2E — 5대 대표 시나리오
         run: npx tsx scripts/run-5-scenarios.ts
 
+      - name: Authz — 인증·인가 + User Exit (권한 기반 활성/바이패스)
+        run: npx tsx scripts/authz-scenario.ts
+
       - name: Doc — 문서번호 채번 (무결번·유형별 분리)
         run: npx tsx scripts/doc-number-scenario.ts
 

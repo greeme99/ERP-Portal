@@ -117,9 +117,33 @@ export function takeSnapshot(key: string): Entity[] | undefined {
   return snapshot?.[key];
 }
 
+// 신원 조회는 주입받는다. session 을 직접 import 하면
+// store → restBackend → session → mock/platform → store 순환이 생겨
+// 모듈 초기화 중 createStore 가 undefined 가 될 수 있다.
+let identityProvider: (() => Entity | undefined) | null = null;
+
+export function setIdentityProvider(provider: () => Entity | undefined) {
+  identityProvider = provider;
+}
+
+/**
+ * 서버가 인가를 재검증할 수 있도록 현재 사용자 신원을 보낸다.
+ * 인증이 없어 위조 가능하므로 보안 경계가 아니라 오조작 방지·감사 목적이다.
+ * 헤더 값은 비ASCII(한글 역할명)를 담으므로 encodeURIComponent 로 감싼다.
+ */
+function identityHeaders(): Record<string, string> {
+  const user = identityProvider?.();
+  if (!user) return {};
+  return {
+    "X-ERP-User-Id": encodeURIComponent(String(user.id ?? "")),
+    "X-ERP-User-Role": encodeURIComponent(String(user.role ?? "")),
+    "X-ERP-User-Status": encodeURIComponent(String(user.status ?? "")),
+  };
+}
+
 const jsonInit = (method: string, payload?: unknown): RequestInit => ({
   method,
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", ...identityHeaders() },
   ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
 });
 

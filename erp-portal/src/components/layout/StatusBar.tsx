@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from "react";
 import { getBackendStatus, isRestConfigured, subscribeBackendStatus } from "../../services/restBackend";
+import { userStore } from "../../data/mock/platform";
+import { useStore } from "../../services/store";
+import { setCurrentUserId, useCurrentUser } from "../../services/session";
+import { useAuthz } from "../../services/authz";
 
 interface Props {
   demoPlaybookOpen: boolean;
@@ -28,6 +32,43 @@ function StorageBadge() {
     >
       <span className={`w-2 h-2 rounded-full ${isRestConfigured() ? "bg-amber-500" : "bg-slate-400"}`} />
       {isRestConfigured() ? "서버 미연결 (로컬 저장)" : "로컬 저장 (프로토타입)"}
+    </span>
+  );
+}
+
+// 사용자 전환 — 비밀번호를 다루지 않는 데모용 세션 스위처.
+// 실제 인증은 운영 전환 시 서버에서 구현해야 한다.
+function UserSwitcher() {
+  const users = useStore(userStore);
+  const current = useCurrentUser();
+  const authz = useAuthz();
+
+  return (
+    <span className="ml-auto flex items-center gap-1.5">
+      <span className="hidden sm:inline text-sub">사용자:</span>
+      <select
+        value={String(current?.id ?? "")}
+        onChange={(e) => setCurrentUserId(e.target.value)}
+        title="사용자를 전환하면 권한에 따라 메뉴·화면·버튼이 달라집니다."
+        className="px-1.5 py-0.5 rounded border border-line bg-surface text-[11px] text-ink max-w-[220px]"
+      >
+        {users.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.name} ({u.role}){u.status !== "활성" ? " · 비활성" : ""} — {u.email}
+          </option>
+        ))}
+      </select>
+      <span
+        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+          authz.isAdmin
+            ? "bg-purple-100 text-purple-700"
+            : current?.status === "활성"
+              ? "bg-slate-100 text-slate-600"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
+        {authz.isAdmin ? "admin" : current?.status === "활성" ? "user" : "비활성"}
+      </span>
     </span>
   );
 }
@@ -70,9 +111,7 @@ export default function StatusBar({ demoPlaybookOpen, onToggleDemoPlaybook }: Pr
         </span>
       </div>
 
-      <span className="ml-auto text-sub hidden sm:inline">
-        사용자: harry.kim@ax.samsung.com | 권한: 관리자
-      </span>
+      <UserSwitcher />
       <span className="font-mono text-[10px]">v0.1.0</span>
     </footer>
   );

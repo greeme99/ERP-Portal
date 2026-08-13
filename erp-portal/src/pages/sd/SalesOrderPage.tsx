@@ -6,6 +6,8 @@ import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
 import { nextDocCode } from "../../services/docNumber";
 import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 import { addVat, VAT_RATE } from "../../services/documentMath";
+import { useModuleAuthz } from "../../services/authz";
+import { runUserExits } from "../../services/userExit";
 
 const STATUS_STYLE: Record<string, string> = {
   등록: "bg-amber-100 text-amber-700",
@@ -21,6 +23,7 @@ export default function SalesOrderPage() {
   const [sel, setSel] = useState<string | null>(orders[0]?.id ?? null);
   const [creating, setCreating] = useState(false);
   const [printDoc, setPrintDoc] = useState<PrintDoc | null>(null);
+  const authz = useModuleAuthz();
   const [form, setForm] = useState<{ customer: string; dueDate: string; lines: DocLine[] }>({
     customer: "", dueDate: "2026-08-01", lines: [],
   });
@@ -90,11 +93,23 @@ export default function SalesOrderPage() {
   const save = async () => {
     if (!form.customer) return alert("고객을 선택하세요.");
     if (form.lines.length === 0) return alert("품목 라인을 추가하세요.");
-    // 신용한도 체크 (SD-001 연계)
+    // 여신한도 검사는 User Exit 으로 옮겼다 (표준 로직에서 고객 규칙을 분리).
+    // 재무(fi) 조회 권한이 없는 사용자에게는 Exit 이 바이패스된다.
     const cust = customers.find((c) => c.code === form.customer);
     const total = docTotal(form.lines);
-    if (cust && cust.creditUsed + total > cust.creditLimit) {
-      if (!confirm(`⚠️ 신용한도 초과: 한도 ${Number(cust.creditLimit).toLocaleString()}원, 사용 ${Number(cust.creditUsed).toLocaleString()}원, 신규 ${total.toLocaleString()}원.\n그래도 등록할까요? (여신 승인 필요)`)) return;
+    const exits = runUserExits(
+      "sd.order.beforeSave",
+      {
+        user: authz.user,
+        document: { customer: form.customer, total, lineCount: form.lines.length },
+        extra: { creditLimit: Number(cust?.creditLimit) || 0, creditUsed: Number(cust?.creditUsed) || 0 },
+      },
+      authz.can
+    );
+    if (!exits.ok) return alert(`User Exit 검증 실패 — 저장을 중단했습니다.\n\n${exits.messages.join("\n")}`);
+    if (exits.messages.length > 0 && !confirm(`${exits.messages.join("\n")}\n\n계속 등록할까요?`)) return;
+    if (exits.bypassed.length > 0) {
+      console.warn("[User Exit] 권한 미충족으로 바이패스:", exits.bypassed);
     }
     // ATP 부족 경고
     const shortage = form.lines.filter((l) => atp(l.material) < l.qty);
@@ -131,7 +146,14 @@ export default function SalesOrderPage() {
       <div className="bg-panel border border-line rounded-lg p-3 flex items-center gap-2">
         <span className="text-[11px] text-sub">{orders.length}건</span>
         <div className="ml-auto flex gap-1">
-          <button onClick={() => { setCreating(true); addLine(); }} className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold">＋ 수주 등록</button>
+          <button
+            onClick={() => { setCreating(true); addLine(); }}
+            disabled={!authz.canEditHere}
+            title={authz.canEditHere ? "" : "영업 모듈 편집 권한이 없습니다."}
+            className="px-3 py-1.5 rounded bg-accent text-white text-[12px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ＋ 수주 등록
+          </button>
           <button onClick={excel} className="px-3 py-1.5 rounded border border-line text-[12px] hover:bg-accent-soft">📥 Excel</button>
         </div>
       </div>
@@ -183,8 +205,22 @@ export default function SalesOrderPage() {
                   </button>
                   {order.status === "등록" && (
                     <>
-                      <button onClick={reserve} className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-semibold">🚚 출하예약</button>
-                      <button onClick={cancel} className="px-3 py-1 rounded border border-line text-[11px] text-red-500 hover:bg-accent-soft">취소</button>
+                      <button
+                        onClick={reserve}
+                        disabled={!authz.canApproveHere}
+                        title={authz.canApproveHere ? "" : "출하예약은 승인 권한이 필요합니다."}
+                        className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        🚚 출하예약
+                      </button>
+                      <button
+                        onClick={cancel}
+                        disabled={!authz.canApproveHere}
+                        title={authz.canApproveHere ? "" : "수주 취소는 승인 권한이 필요합니다."}
+                        className="px-3 py-1 rounded border border-line text-[11px] text-red-500 hover:bg-accent-soft disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        취소
+                      </button>
                     </>
                   )}
                 </div>
