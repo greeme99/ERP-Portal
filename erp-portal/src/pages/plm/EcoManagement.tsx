@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore, bomStore } from "../../data/mock/master";
 import { ecoStore, drawingStore, nextRev, CHANGE_TYPES, ECO_STATUS_STYLE } from "../../data/mock/pdm";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -55,11 +56,11 @@ export default function EcoManagement() {
     alert(`✅ ${e.code} 적용 완료 — ${e.parent} BOM 반영, 도면 Rev 개정`);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.parent) return alert("대상 상위품목을 선택하세요.");
     if (!form.child) return alert("대상 구성품을 선택하세요.");
     if (form.changeType === "자재대체" && !form.newChild) return alert("대체 품목을 선택하세요.");
-    const code = nextId("ECO");
+    const code = await nextDocCode("ECO", ecoStore.getAll().map((x) => String(x.code)));
     ecoStore.create({
       id: code, code, parent: form.parent, changeType: form.changeType, child: form.child,
       newChild: form.newChild, qty: form.qty, reason: form.reason, requester: "연구소",

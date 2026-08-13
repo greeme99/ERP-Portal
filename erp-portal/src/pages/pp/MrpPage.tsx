@@ -5,6 +5,7 @@ import { mpsStore, mpsWeeklyStore, explodeBom, MpsDailyItem, MpsWeeklyItem } fro
 import { prStore } from "../../data/mock/procurement";
 import { WEEK_BUCKETS, forecastStore, ForecastItem } from "../../data/mock/scm";
 import { useStore, nextId } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 
@@ -84,9 +85,9 @@ export default function MrpPage() {
     .filter((m) => m.status === "사용")
     .filter((m) => selectedCategory === "전체" || m.leadTimeCategory === selectedCategory);
 
-  const createPrForWeek = (matCode: string, weekStr: string, qty: number, arrivalDate: string) => {
+  const createPrForWeek = async (matCode: string, weekStr: string, qty: number, arrivalDate: string) => {
     const mat = mats.find((m) => m.code === matCode);
-    const code = nextId("PR");
+    const code = await nextDocCode("PR", prStore.getAll().map((x) => String(x.code)));
     prStore.create({
       id: code,
       code,

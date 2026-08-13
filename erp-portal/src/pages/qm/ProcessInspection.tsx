@@ -4,6 +4,7 @@ import { materialStore } from "../../data/mock/master";
 import { woStore } from "../../data/mock/production";
 import { procInspStore, ncStore } from "../../data/mock/quality2";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 const TODAY = "2026-07-03";
 const PROCESSES = ["SMT", "조립", "검사", "포장"];
@@ -22,11 +23,11 @@ export default function ProcessInspection() {
 
   const activeWos = wos.filter((w) => w.status === "진행" || w.status === "완료");
 
-  const save = () => {
+  const save = async () => {
     if (!form.wo) return alert("작업지시를 선택하세요.");
     const wo = wos.find((w) => w.code === form.wo);
     const result = form.defects === 0 ? "합격" : form.defects <= Math.floor(form.sample * 0.02) ? "합격" : "불합격";
-    const code = nextId("PQ");
+    const code = await nextDocCode("PQ", procInspStore.getAll().map((x) => String(x.code)));
     procInspStore.create({
       id: code, code, wo: form.wo, material: wo?.material ?? "", process: form.process,
       sample: form.sample, defects: form.defects, result, date: TODAY,

@@ -28,6 +28,8 @@
 - 공개 API/호환성 제약: `EntityStore`의 subscribe/getAll/create/update/remove/replaceAll 계약을 유지한다.
   `getAll()`은 동기이고 `create()`는 Entity를 동기 반환하므로 REST 모드도 캐시 우선 + 낙관적 쓰기여야 한다.
   N건을 원자적으로 반영해야 하는 경로(일괄 업로드)는 `replaceAll`을 쓴다.
+- 번호 체계는 둘로 나뉜다. `nextId`는 기술 키(행 id)이고 구간 예약이라 구멍이 생길 수 있다.
+  사용자에게 보이는 문서번호는 `nextDocCode`(비동기)로 문서유형·기간별 무결번을 받는다 (예: `PO-26054`).
 - ID 발급: REST 모드에서는 서버가 겹치지 않는 순번 구간을 예약해 주고 `nextId`가 그 안에서 동기 발급한다.
   클라이언트별 카운터로 되돌아가지 않는다(다중 사용자 id 충돌 방지).
 
@@ -48,6 +50,9 @@ npx.cmd tsx scripts/store-persistence-scenario.ts
 # integration/e2e
 npx.cmd tsx scripts/e2e-scenario.ts
 npx.cmd tsx scripts/run-5-scenarios.ts
+
+# doc number (문서번호 채번)
+npx.cmd tsx scripts/doc-number-scenario.ts
 
 # print (인쇄 서식 금액)
 npx.cmd tsx scripts/print-forms-scenario.ts

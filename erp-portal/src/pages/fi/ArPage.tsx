@@ -4,6 +4,7 @@ import { customerStore } from "../../data/mock/master";
 import { salesOrderStore, docTotal, DocLine } from "../../data/mock/sales";
 import { arStore } from "../../data/mock/finance";
 import { useStore, nextId, downloadCsv, Entity } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 import PrintableDocument, { PrintDoc } from "../../components/print/PrintableDocument";
 import { splitVat, VAT_RATE } from "../../services/documentMath";
 
@@ -19,15 +20,16 @@ export default function ArPage() {
   const custName = (c: string) => customers.find((x) => x.code === c)?.name ?? c;
   const unbooked = sos.filter((o) => o.status === "출하완료" && !ars.some((a) => a.ref === o.code));
 
-  const sync = () => {
+  // 문서번호 채번이 비동기라 for...of 로 순차 발급한다 (번호가 겹치지 않게)
+  const sync = async () => {
     if (unbooked.length === 0) return alert("동기화할 출하완료 건이 없습니다.");
-    unbooked.forEach((o) => {
-      const code = nextId("AR");
+    for (const o of unbooked) {
+      const code = await nextDocCode("AR", arStore.getAll().map((x) => String(x.code)));
       arStore.create({
         id: code, code, ref: o.code, customer: o.customer, amount: docTotal(o.lines as DocLine[]),
         invoiceDate: TODAY, dueDate: o.dueDate, status: "미수",
       });
-    });
+    }
   };
 
   const collect = (ar: any) => {

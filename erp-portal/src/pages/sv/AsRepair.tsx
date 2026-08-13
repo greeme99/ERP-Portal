@@ -3,6 +3,7 @@ import { useState } from "react";
 import { materialStore, customerStore } from "../../data/mock/master";
 import { warrantyStore, asStore, AS_STATUS_STYLE, WARRANTY_STYLE, TODAY } from "../../data/mock/service";
 import { useStore, nextId, downloadCsv } from "../../services/store";
+import { nextDocCode } from "../../services/docNumber";
 
 export default function AsRepair() {
   const ass = useStore(asStore);
@@ -20,10 +21,10 @@ export default function AsRepair() {
   const checkWarranty = (customer: string, material: string) =>
     warranties.some((w) => w.customer === customer && w.material === material && w.expiry >= TODAY) ? "유효" : "만료";
 
-  const save = () => {
+  const save = async () => {
     if (!form.customer || !form.material) return alert("고객과 제품을 선택하세요.");
     if (!form.symptom.trim()) return alert("증상을 입력하세요.");
-    const code = nextId("AS");
+    const code = await nextDocCode("AS", asStore.getAll().map((x) => String(x.code)));
     asStore.create({
       id: code, code, customer: form.customer, material: form.material, symptom: form.symptom,
       receiveDate: TODAY, status: "접수", warranty: checkWarranty(form.customer, form.material), cost: 0, note: "",
