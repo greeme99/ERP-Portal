@@ -117,6 +117,7 @@ import BudgetPlan from "./pages/co/BudgetPlan";
 import Copa from "./pages/co/Copa";
 import CostAllocation from "./pages/co/CostAllocation";
 import ProfitAnalysis from "./pages/co/ProfitAnalysis";
+import ManagementDashboard from "./pages/co/ManagementDashboard";
 import TargetCostSimulation from "./pages/co/TargetCostSimulation";
 // PLM
 import ProjectManagement from "./pages/plm/ProjectManagement";
@@ -150,6 +151,8 @@ import OrganizationManagement from "./pages/com/OrganizationManagement";
 import ApprovalInbox from "./pages/com/ApprovalInbox";
 import RoleMasterManagement from "./pages/com/RoleMasterManagement";
 import CommonCodeMaster from "./pages/com/CommonCodeMaster";
+import PurchaseDashboard from "./pages/mm/PurchaseDashboard";
+import LogisticsDashboard from "./pages/le/LogisticsDashboard";
 import BatchJobManagement from "./pages/com/BatchJobManagement";
 import NotificationCenter from "./pages/com/NotificationCenter";
 import AuditLogs from "./pages/com/AuditLogs";
@@ -232,6 +235,7 @@ export default function App() {
         <Route path="/m/mm/mm-07" element={<SubcontractSettlement />} />
         <Route path="/m/mm/mm-08" element={<RawMaterialProcurement />} />
         <Route path="/m/mm/mm-09" element={<SupplierPortal />} />
+        <Route path="/m/mm/mm-15" element={<PurchaseDashboard />} />
         <Route path="/m/le/le-01" element={<GoodsReceipt />} />
         <Route path="/m/le/le-02" element={<GoodsIssue />} />
         <Route path="/m/le/le-03" element={<StockLedger />} />
@@ -242,6 +246,7 @@ export default function App() {
         <Route path="/m/le/le-08" element={<TransportationManagement />} />
         <Route path="/m/le/le-09" element={<WarehouseLocationManagement />} />
         <Route path="/m/le/le-10" element={<CustomsManagement />} />
+        <Route path="/m/le/le-14" element={<LogisticsDashboard />} />
         <Route path="/m/pp/pp-01" element={<PpDashboardMaster />} />
         <Route path="/m/pp/pp-02" element={<MpsPage />} />
         <Route path="/m/pp/pp-03" element={<MrpPage />} />
@@ -297,7 +302,9 @@ export default function App() {
         <Route path="/m/co/co-09" element={<CostAllocation />} />
         <Route path="/m/co/co-10" element={<Copa />} />
         <Route path="/m/co/co-11" element={<ProfitAnalysis />} />
-        <Route path="/m/co/co-12" element={<ProfitAnalysis />} />
+        {/* co-12 는 co-11(손익분석)과 같은 화면을 가리키던 중복 바인딩이었다.
+            co-11 을 정본으로 두고, co-12 는 본래 이름대로 경영 Dashboard 를 만들어 붙였다. */}
+        <Route path="/m/co/co-12" element={<ManagementDashboard />} />
         <Route path="/m/co/co-13" element={<TargetCostSimulation />} />
         <Route path="/m/plm/plm-01" element={<ProjectManagement />} />
         <Route path="/m/plm/plm-02" element={<ProductSpec />} />
@@ -327,7 +334,9 @@ export default function App() {
         <Route path="/m/com/com-03" element={<OrganizationManagement />} />
         <Route path="/m/com/com-04" element={<ApprovalInbox />} />
         <Route path="/m/com/com-05" element={<RoleMasterManagement />} />
-        <Route path="/m/com/com-06" element={<CommonCodeMaster />} />
+        {/* com-06 은 mdm-12(공통코드)와 같은 화면을 가리키던 중복 바인딩이라 해제했다.
+            공통코드는 기준정보 성격이므로 mdm-12 를 정본으로 두고,
+            com-06(API Gateway)은 미구현으로 되돌린다. */}
         <Route path="/m/com/com-07" element={<BatchJobManagement />} />
         <Route path="/m/com/com-08" element={<NotificationCenter />} />
         <Route path="/m/com/com-09" element={<AuditLogs />} />

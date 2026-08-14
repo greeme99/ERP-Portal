@@ -56,6 +56,13 @@ export function requiredLevel(method) {
 /**
  * 요청 헤더에서 사용자 신원을 읽는다. 위조 가능하므로 신뢰 경계가 아니다.
  * X-ERP-User-Role / X-ERP-User-Status / X-ERP-User-Id
+ *
+ * [AUTH-SEAM 3/3] 신원의 검증. 여기가 진짜 신뢰 경계가 될 자리다.
+ * 운영 전환 시 이 함수를 토큰 서명 검증(또는 세션 조회)으로 바꾸고, 검증
+ * 실패는 401 로 돌려준다. 반환 형태({id, role, status})를 유지하면 아래
+ * checkAuthz 와 index.mjs 의 canApproveModule 은 손대지 않아도 된다.
+ * 함께 없앨 것 — checkAuthz 의 "헤더 없으면 통과" 분기(테스트 호환용).
+ * 절차는 문서 4.6 §5.
  */
 export function identityFromHeaders(headers) {
   const decode = (v) => {
