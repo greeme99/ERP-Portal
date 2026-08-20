@@ -1,0 +1,54 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages 배포 권한. 기본 GITHUB_TOKEN 에는 없으므로 명시한다.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 취소하지 않는다 — 진행 중인 배포를 끊으면 사이트가 중간 상태로 남는다.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: build · deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: erp-portal/package-lock.json
+
+      - name: Install dependencies
+        working-directory: erp-portal
+        run: npm ci --no-audit --no-fund
+
+      # VITE_API_URL 을 주지 않는다 → store 가 localStorage 프로토타입 모드로 동작한다.
+      # Pages 는 정적 호스팅이라 REST 백엔드를 띄울 수 없다.
+      - name: Build
+        working-directory: erp-portal
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: erp-portal/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
