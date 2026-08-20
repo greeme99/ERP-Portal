@@ -31,11 +31,13 @@ const perms = [
   { id: "회계", role: "회계", perms: { sd: "조회", mm: "조회", fi: "승인" } },
   // mm 편집은 있으나 구매/관리자가 아닌 역할 — 발주 한도 Exit 의 차단 대상
   { id: "생산", role: "생산", perms: { sd: "조회", mm: "편집", fi: "없음" } },
+  { id: "구매", role: "구매", perms: { sd: "조회", mm: "승인", fi: "조회" } },
 ];
 const admin = { id: "U-1", name: "관리자", role: "관리자", status: "활성" };
 const sales = { id: "U-2", name: "김영업", role: "영업", status: "활성" };
 const acct = { id: "U-3", name: "정회계", role: "회계", status: "활성" };
 const prod = { id: "U-4", name: "이생산", role: "생산", status: "활성" };
+const buyer = { id: "U-5", name: "박구매", role: "구매", status: "활성" };
 const retired = { id: "U-9", name: "퇴사자", role: "영업", status: "비활성" };
 
 console.log("\n[1] 권한 판정 — 역할 유지 + 관리자=admin");
@@ -129,69 +131,88 @@ console.log("\n[4] 서버 HTTP 레벨 인가 — 실제 403");
   check(asRetired.status === 403, "비활성 사용자는 403", String(asRetired.status));
 }
 
-console.log("\n[5] User Exit — 권한에 따라 활성/바이패스");
+console.log("\n[5] User Exit — 검증은 항상 실행, 권한은 예외승인에만 쓴다");
 {
   userExit.clearUserExits();
   registerDefaultUserExits();
-  const exits = userExit.listUserExits();
-  check(exits.length === 3, "기본 Exit 3개가 등록된다", String(exits.length));
+  check(userExit.listUserExits().length === 3, "기본 Exit 3개 등록", String(userExit.listUserExits().length));
   check(userExit.listUserExits("sd.order.beforeSave").length === 1, "지점별 조회가 된다");
 
   const canFor = (user: typeof sales) => (moduleId: string, level: authz.PermLevel) =>
     meetsLevel(resolvePermLevel(perms, user, moduleId), level);
 
-  // 한도 초과 수주: 회계(fi 승인)는 Exit 이 돌아 차단, 영업(fi 없음)은 바이패스
-  const overLimit = {
-    user: acct,
-    document: { total: 900 },
-    extra: { creditLimit: 1000, creditUsed: 500 },
-  };
-  const asAcct = userExit.runUserExits("sd.order.beforeSave", overLimit, canFor(acct));
-  check(!asAcct.ok, "fi 권한자에게는 여신 Exit 이 돌아 차단된다", JSON.stringify(asAcct.messages));
-  check(asAcct.executed.includes("EXIT_SD_CREDIT_CHECK"), "Exit 이 실행 목록에 있다");
+  const overLimit = { user: sales, document: { total: 900 }, extra: { creditLimit: 1000, creditUsed: 500 } };
 
-  const asSales = userExit.runUserExits("sd.order.beforeSave", { ...overLimit, user: sales }, canFor(sales));
-  check(asSales.ok, "fi 권한이 없으면 Exit 이 바이패스되어 통과한다");
-  check(asSales.bypassed.some((b) => b.id === "EXIT_SD_CREDIT_CHECK"), "바이패스 목록에 기록된다", JSON.stringify(asSales.bypassed));
-  check(asSales.executed.length === 0, "바이패스된 Exit 은 실행되지 않는다");
+  // 핵심 변경: fi 권한이 없는 영업에게도 여신 검증이 실행되어 차단된다 (이전에는 바이패스)
+  const asSales = userExit.runUserExits("sd.order.beforeSave", overLimit, canFor(sales));
+  check(asSales.executed.includes("EXIT_SD_CREDIT_CHECK"), "fi 권한 없어도 검증이 실행된다 (바이패스 없음)");
+  check(!asSales.ok, "영업의 한도 초과 수주가 차단된다", JSON.stringify(asSales.messages));
+  check(asSales.blocked.some((b) => b.id === "EXIT_SD_CREDIT_CHECK"), "예외승인 권한 부재를 알린다");
 
-  // 한도 내 수주는 통과
+  // fi 승인 권한자는 경고로 통과
+  const asAcct = userExit.runUserExits("sd.order.beforeSave", { ...overLimit, user: acct }, canFor(acct));
+  check(asAcct.ok, "fi 승인 권한자는 예외 통과한다");
+  check(asAcct.messages.some((m) => m.includes("⚠️")), "경고로 알린다", JSON.stringify(asAcct.messages));
+
   const within = userExit.runUserExits(
     "sd.order.beforeSave",
-    { user: acct, document: { total: 100 }, extra: { creditLimit: 1000, creditUsed: 100 } },
-    canFor(acct)
+    { user: sales, document: { total: 100 }, extra: { creditLimit: 1000, creditUsed: 100 } },
+    canFor(sales)
   );
   check(within.ok && within.messages.length === 0, "한도 내면 조용히 통과");
 
-  // 소진율 90% 이상은 경고(통과)
-  const warn = userExit.runUserExits(
-    "sd.order.beforeSave",
-    { user: acct, document: { total: 450 }, extra: { creditLimit: 1000, creditUsed: 500 } },
-    canFor(acct)
-  );
-  check(warn.ok && warn.messages.some((m) => m.includes("⚠️")), "소진율 경고는 통과시키고 알린다", JSON.stringify(warn.messages));
+  // 발주 한도 — mm 승인 권한자만 예외 통과
+  const bigPo = { document: { amount: PO_APPROVAL_LIMIT + 1 } };
+  const poSales = userExit.runUserExits("mm.po.beforeSave", { ...bigPo, user: sales }, canFor(sales));
+  check(!poSales.ok, "mm 승인 권한 없으면 한도 초과 발주 차단");
+  check(poSales.executed.includes("EXIT_MM_PO_LIMIT"), "mm 권한 없어도 검증은 실행된다");
 
-  // MM 발주 한도 — 영업은 mm 권한이 없어 바이패스
-  const bigPo = { user: sales, document: { amount: PO_APPROVAL_LIMIT + 1 } };
-  const poSales = userExit.runUserExits("mm.po.beforeSave", bigPo, canFor(sales));
-  check(poSales.ok && poSales.bypassed.length === 1, "mm 권한 없으면 발주 한도 Exit 바이패스");
+  const poBuyer = userExit.runUserExits("mm.po.beforeSave", { ...bigPo, user: buyer }, canFor(buyer));
+  check(poBuyer.ok && poBuyer.messages.some((m) => m.includes("⚠️")), "구매(mm 승인)는 경고 통과", JSON.stringify(poBuyer.messages));
 
-  const poAdmin = userExit.runUserExits("mm.po.beforeSave", { ...bigPo, user: admin }, canFor(admin));
-  check(poAdmin.ok && poAdmin.messages.some((m) => m.includes("⚠️")), "관리자는 한도 초과를 경고로 통과", JSON.stringify(poAdmin.messages));
-
-  const poAcct = userExit.runUserExits("mm.po.beforeSave", { ...bigPo, user: acct }, canFor(acct));
-  check(poAcct.ok && poAcct.bypassed.length === 1, "mm 조회만 있으면 Exit 이 바이패스된다 (평가 불가)", JSON.stringify(poAcct.bypassed));
-
-  // mm 편집은 있으나 구매/관리자가 아닌 역할 → Exit 이 돌아 한도 초과를 차단한다
-  const poProd = userExit.runUserExits("mm.po.beforeSave", { ...bigPo, user: prod }, canFor(prod));
-  check(!poProd.ok, "mm 편집 권한자라도 구매 승인권자가 아니면 한도 초과 차단", JSON.stringify(poProd.messages));
-  check(poProd.executed.includes("EXIT_MM_PO_LIMIT"), "해당 Exit 이 실제로 실행됐다");
-
-  // FI 전표 차대
-  const jvBad = userExit.runUserExits("fi.journal.beforeSave", { user: acct, document: { debit: 100, credit: 90 } }, canFor(acct));
-  check(!jvBad.ok, "차대 불일치 전표는 차단");
-  const jvOk = userExit.runUserExits("fi.journal.beforeSave", { user: acct, document: { debit: 100, credit: 100 } }, canFor(acct));
+  // 전표 차대 — approval 이 없어 아무도 못 넘긴다
+  const jvBad = userExit.runUserExits("fi.journal.beforeSave", { user: admin, document: { debit: 100, credit: 90 } }, () => true);
+  check(!jvBad.ok, "차대 불일치는 관리자도 넘길 수 없다 (approval 없음)");
+  check(jvBad.blocked.length === 0, "approval 이 없으면 blocked 에 담지 않는다");
+  const jvOk = userExit.runUserExits("fi.journal.beforeSave", { user: admin, document: { debit: 100, credit: 100 } }, () => true);
   check(jvOk.ok, "차대 일치 전표는 통과");
+}
+
+console.log("\n[5-2] 서버 업무 규칙 재검증 — UI 우회 차단 (T-4)");
+{
+  const put = (key: string, data: unknown[], headers: Record<string, string> = {}) =>
+    fetch(`${base}/api/entities/${key}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ data }),
+    });
+  const asRole = (role: string) => ({
+    "X-ERP-User-Role": encodeURIComponent(role),
+    "X-ERP-User-Status": encodeURIComponent("활성"),
+  });
+
+  const bad = await put("finance.journal", [{ id: "JV-1", code: "JV-26001", lines: [{ dr: 100, cr: 0 }, { dr: 0, cr: 90 }] }], asRole("회계"));
+  check(bad.status === 422, "불균형 전표는 422", String(bad.status));
+  const badBody = await bad.json();
+  check(/RULE_FI_JV_BALANCE/.test(String(badBody?.error)), "위반 규칙 id 를 알려준다", String(badBody?.error));
+
+  const good = await put("finance.journal", [{ id: "JV-1", code: "JV-26001", lines: [{ dr: 100, cr: 0 }, { dr: 0, cr: 100 }] }], asRole("회계"));
+  check(good.status === 200, "균형 전표는 200", String(good.status));
+
+  const adminBad = await put("finance.journal", [{ id: "JV-2", code: "JV-26002", lines: [{ dr: 1, cr: 0 }] }], asRole("관리자"));
+  check(adminBad.status === 422, "관리자도 차대 불일치는 막힌다", String(adminBad.status));
+
+  const overPo = [{ id: "PO-1", code: "PO-26001", qty: 2, price: PO_APPROVAL_LIMIT }];
+  const poByProd = await put("procurement.order", overPo, asRole("생산"));
+  check(poByProd.status === 422, "mm 승인 권한 없으면 한도 초과 발주 422", String(poByProd.status));
+  const poByBuyer = await put("procurement.order", overPo, asRole("구매"));
+  check(poByBuyer.status === 200, "구매(mm 승인)는 한도 초과 발주 통과", String(poByBuyer.status));
+
+  const so = await put("sales.order", [{ id: "SO-1", code: "SO-26001", total: 99999999999 }], asRole("영업"));
+  check(so.status === 200, "여신한도는 서버가 검증하지 않는다 (클라이언트 전용)", String(so.status));
+
+  const noHeader = await put("finance.journal", [{ id: "JV-3", code: "JV-26003", lines: [{ dr: 5, cr: 0 }] }]);
+  check(noHeader.status === 422, "신원 헤더가 없어도 업무 규칙은 적용된다", String(noHeader.status));
 }
 
 console.log("\n[6] Exit 오류가 표준 로직을 깨뜨리지 않는다");

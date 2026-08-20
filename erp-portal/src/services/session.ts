@@ -6,6 +6,12 @@
 //
 // 비밀번호를 다루지 않는다(프로젝트 보안 규칙). 사용자 전환은 데모용이며
 // 실제 인증은 운영 전환 시 서버에서 구현해야 한다.
+//
+// [AUTH-SEAM 1/3] 신원의 출처.
+// 운영 전환 시 이 파일만 IdP(OIDC) 연동으로 바꾸면 된다 — currentUserId 를
+// 토큰 subject 로, setCurrentUserId 를 로그인/로그아웃으로 대체한다.
+// 화면은 useCurrentUser() 만 쓰므로 호출부는 바뀌지 않는다.
+// 다른 접점: restBackend.ts(2/3), server/authz.mjs(3/3). 절차는 문서 4.6 §5.
 import { useSyncExternalStore } from "react";
 import { Entity, useStore } from "./store";
 import { userStore } from "../data/mock/platform";

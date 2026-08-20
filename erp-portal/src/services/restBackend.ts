@@ -130,6 +130,13 @@ export function setIdentityProvider(provider: () => Entity | undefined) {
  * 서버가 인가를 재검증할 수 있도록 현재 사용자 신원을 보낸다.
  * 인증이 없어 위조 가능하므로 보안 경계가 아니라 오조작 방지·감사 목적이다.
  * 헤더 값은 비ASCII(한글 역할명)를 담으므로 encodeURIComponent 로 감싼다.
+ *
+ * [AUTH-SEAM 2/3] 신원의 전송.
+ * 운영 전환 시 이 함수만 `Authorization: Bearer <token>` 반환으로 바꾼다.
+ * 주의 — 지금은 GET(스냅샷·재조회)이 이 헤더를 달지 않는다. 서버가 읽기를
+ * 항상 허용하기 때문이다. 인증 도입 시 GET 도 토큰을 실어야 하므로
+ * jsonInit 뿐 아니라 아래 fetch 들에도 함께 적용해야 한다.
+ * 절차는 문서 4.6 §5.
  */
 function identityHeaders(): Record<string, string> {
   const user = identityProvider?.();

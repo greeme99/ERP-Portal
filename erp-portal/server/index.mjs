@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createStorage, isValidKey, validateEntities } from "./storage.mjs";
 import { checkAuthz, identityFromHeaders } from "./authz.mjs";
+import { SELF_CONTAINED_RULES } from "../shared/businessRules.mjs";
+import { PERM_ORDER } from "./authz.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 5177);
@@ -48,6 +50,8 @@ function fail(res, status, message) {
 }
 
 function readBody(req) {
+  // 인가·규칙 검증 단계에서 이미 읽었으면 그 값을 재사용한다(스트림은 한 번만 읽힌다).
+  if (req.__body !== undefined) return Promise.resolve(req.__body);
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -70,6 +74,16 @@ function readBody(req) {
     });
     req.on("error", reject);
   });
+}
+
+/** 규칙 위반을 예외 승인할 권한이 있는가. 클라이언트 approval 판정과 같은 기준이다. */
+function canApproveModule(identity, permissionRows, moduleId) {
+  if (!identity?.role) return false;
+  if (identity.status && identity.status !== "활성") return false;
+  if (identity.role === "관리자") return true;
+  const row = (permissionRows ?? []).find((r) => r?.role === identity.role);
+  const level = row?.perms?.[moduleId];
+  return PERM_ORDER.indexOf(level) >= PERM_ORDER.indexOf("승인");
 }
 
 // id 는 경로/본문 어디서 와도 서버가 신뢰하지 않고 문자열 여부만 확인한다.
@@ -127,6 +141,30 @@ async function route(req, res, url) {
     const permissionRows = (await storage.read("platform.permission")) ?? [];
     const verdict = checkAuthz({ identity, permissionRows, key, method: req.method });
     if (!verdict.allowed) return fail(res, 403, `권한이 없습니다: ${verdict.reason}`);
+
+    // 업무 규칙 재검증 — UI 를 우회한 요청에도 자기완결 규칙을 적용한다.
+    // 규칙 함수는 클라이언트 User Exit 과 같은 파일(shared/businessRules.mjs)을 쓴다.
+    const rule = SELF_CONTAINED_RULES[key];
+    if (rule && (req.method === "POST" || req.method === "PUT" || req.method === "PATCH")) {
+      const body = await readBody(req);
+      const docs =
+        req.method === "PUT" ? (Array.isArray(body?.data) ? body.data : [])
+        : req.method === "POST" ? (body?.row ? [body.row] : [])
+        : (body?.patch ? [body.patch] : []);
+
+      const canApprove = rule.approvalModule
+        ? canApproveModule(identity, permissionRows, rule.approvalModule)
+        : false;
+
+      for (const [i, doc] of docs.entries()) {
+        const outcome = rule.check(doc ?? {}, { canApprove });
+        if (!outcome.ok) {
+          return fail(res, 422, `업무 규칙 위반 [${outcome.ruleId}] ${docs.length > 1 ? `${i + 1}번째 행: ` : ""}${outcome.message}`);
+        }
+      }
+      // 본문을 이미 읽었으므로 아래 핸들러가 다시 읽지 않도록 캐시해 둔다.
+      req.__body = body;
+    }
   }
 
   if (req.method === "GET" && !rowId) {
