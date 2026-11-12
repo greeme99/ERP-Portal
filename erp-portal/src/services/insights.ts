@@ -230,9 +230,71 @@ export const AI_AGENTS = [
   { name: "AI CFO Copilot", desc: "경영지표·의사결정", run: aiCfo, keywords: ["매출", "이익", "손익", "원가", "재무", "채권", "kpi", "경영"] },
 ];
 
-export function routeQuestion(q: string): string {
-  const lower = q.toLowerCase();
+export type RuleMatchResult =
+  | { matched: true; tier: 1; agentName: string; response: string }
+  | { matched: false; tier: 2 };
+
+const STAGE2_COMPLEX_TRIGGERS = [
+  "왜",
+  "원인",
+  "전략",
+  "대책",
+  "규정",
+  "매뉴얼",
+  "방안",
+  "어떻게",
+  "설명",
+  "비교",
+  "역산",
+  "프로세스",
+  "절차",
+  "가이드",
+  "시뮬레이션",
+  "exaone",
+];
+
+/**
+ * 1단계 Rule-base 매칭 판별:
+ * - 비정형 문서(매뉴얼/사내규정/프로세스) 질의나 복합 추론 키워드(원인/전략/대책/왜/어떻게 등)가 포함된 경우 2단계 LG K-EXAONE 2.5로 자동 Fallback
+ * - 정형 5대 도메인 키워드에 매칭되면 Tier 1 (Rule-base Agent) 즉시 실행 결과를 반환
+ * - 그 외 미매칭 질문도 2단계 LG K-EXAONE 2.5로 자동 Fallback
+ */
+export function matchRuleBasedQuestion(q: string): RuleMatchResult {
+  const lower = q.toLowerCase().trim();
+  if (STAGE2_COMPLEX_TRIGGERS.some((kw) => lower.includes(kw))) {
+    return { matched: false, tier: 2 };
+  }
   const agent = AI_AGENTS.find((a) => a.keywords.some((k) => lower.includes(k)));
-  if (agent) return agent.run();
-  return `요청을 분석할 Agent를 찾지 못했습니다. 키워드(수요/구매/생산/품질/손익 등)를 포함하거나 위 Agent 버튼을 사용해 주세요.\n예: "이번 달 손익 요약해줘", "부족 자재 알려줘"`;
+  if (agent) {
+    return { matched: true, tier: 1, agentName: agent.name, response: agent.run() };
+  }
+  return { matched: false, tier: 2 };
+}
+
+/**
+ * 2단계 LG K-EXAONE 2.5 (k-exaone_v2.5) API 호출 시 주입할 실시간 ERP 데이터 요약 컨텍스트(RAG) 생성
+ */
+export function buildErpContextForLlm(): string {
+  const k = computeKpis();
+  const ex = computeExceptions();
+  const mats = materialStore.getAll();
+  const belowSafety = mats.filter((m) => m.stock < m.safety);
+  const longLead = mats.filter((m) => (m.leadTimeWeeks ?? 1) >= 6);
+  const orders = salesOrderStore.getAll();
+  const pos = poStore.getAll();
+
+  const lines: string[] = [
+    `1. 경영 KPI (${TODAY} 기준): 출하매출 ${fmtEok(k.revenue)}, 매출총이익 ${fmtEok(k.profit)} (마진율 ${k.marginPct !== null ? k.marginPct.toFixed(1) : "0.0"}%), 재고자산 ${fmtEok(k.invValue)}, 납기준수율(OTD) ${k.otd !== null ? k.otd.toFixed(1) : "-"}%, 설비종합효율(OEE) ${k.oee !== null ? k.oee.toFixed(1) : "-"}%`,
+    `2. 품목/자재 현황 (총 ${mats.length}종): 안전재고 미달 ${belowSafety.length}종 (${belowSafety.map((m) => `${m.code} ${m.name}[현재고 ${m.stock}/안전재고 ${m.safety}, 리드타임 ${m.leadTimeWeeks ?? 1}주]`).join(", ") || "없음"})`,
+    `3. 핵심 장납기 자재: ${longLead.map((m) => `${m.code} ${m.name}(${m.leadTimeWeeks}주, ${m.leadTimeCategory})`).join(", ")}`,
+    `4. 영업/구매 현황: 전체 수주 ${orders.length}건, 구매발주(PO) ${pos.length}건`,
+    `5. 실시간 이상 징후 (${ex.length}건): ${ex.slice(0, 5).map((e) => `[${e.tag}] ${e.text}`).join(" / ") || "이상 없음"}`,
+  ];
+  return lines.join("\n");
+}
+
+export function routeQuestion(q: string): string {
+  const match = matchRuleBasedQuestion(q);
+  if (match.matched) return match.response;
+  return `요청을 분석할 1단계 Rule-base Agent를 찾지 못했습니다. 2단계 LG K-EXAONE 2.5 (k-exaone_v2.5) 모델로 전환하여 분석합니다.`;
 }

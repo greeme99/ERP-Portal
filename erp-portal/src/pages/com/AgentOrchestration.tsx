@@ -14,9 +14,10 @@ export interface AgentOrchestrationItem {
 }
 
 export const agentOrchestrStore = createStore("com.agent_orchestr", [
-  { id: "AGO-01", agentId: "HERMES-01", agentName: "Hermes MRP 자재소요 전개 에이전트", assignedDomain: "PP 생산계획 & MM 구매자재", activeStatus: "자율 실행중 (Active)", tasksProcessed: 1250, lastExecutionTime: "2026-08-06 16:50", llmModelVersion: "Gemini-2.5-Pro-Agentic" },
-  { id: "AGO-02", agentId: "HERMES-02", agentName: "Hermes SCM AI 수요예측 엔진", assignedDomain: "SCM 공급망 & SD 영업", activeStatus: "자율 실행중 (Active)", tasksProcessed: 890, lastExecutionTime: "2026-08-06 16:00", llmModelVersion: "Gemini-2.5-Flash-Lite" },
-  { id: "AGO-03", agentId: "HERMES-03", agentName: "Hermes CO 원가 이상 탐지 에이전트", assignedDomain: "CO 관리회계 & FI 재무회계", activeStatus: "자율 실행중 (Active)", tasksProcessed: 430, lastExecutionTime: "2026-08-06 15:30", llmModelVersion: "Gemini-2.5-Pro-Agentic" },
+  { id: "AGO-01", agentId: "HERMES-01", agentName: "Hermes MRP 자재소요 전개 에이전트", assignedDomain: "PP 생산계획 & MM 구매자재", activeStatus: "자율 실행중 (Active)", tasksProcessed: 1250, lastExecutionTime: "2026-08-06 16:50", llmModelVersion: "Rule-base ➔ LG k-exaone_v2.5" },
+  { id: "AGO-02", agentId: "HERMES-02", agentName: "Hermes SCM AI 수요예측 엔진", assignedDomain: "SCM 공급망 & SD 영업", activeStatus: "자율 실행중 (Active)", tasksProcessed: 890, lastExecutionTime: "2026-08-06 16:00", llmModelVersion: "Holt-Winters ➔ LG k-exaone_v2.5" },
+  { id: "AGO-03", agentId: "HERMES-03", agentName: "Hermes CO 원가 이상 탐지 에이전트", assignedDomain: "CO 관리회계 & FI 재무회계", activeStatus: "자율 실행중 (Active)", tasksProcessed: 430, lastExecutionTime: "2026-08-06 15:30", llmModelVersion: "Rule-base ➔ LG k-exaone_v2.5" },
+  { id: "AGO-04", agentId: "EXAONE-COPILOT", agentName: "ERP AI Copilot 2단계 추론 게이트웨이", assignedDomain: "전사 통합 (비정형·복합 질의 Fallback)", activeStatus: "자율 실행중 (Active)", tasksProcessed: 310, lastExecutionTime: "2026-11-12 16:45", llmModelVersion: "LG K-EXAONE 2.5 (k-exaone_v2.5)" },
 ]);
 
 export default function AgentOrchestration() {

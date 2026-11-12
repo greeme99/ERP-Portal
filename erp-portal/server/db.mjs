@@ -257,6 +257,19 @@ CREATE TABLE IF NOT EXISTS mdm_org (
   status TEXT NOT NULL DEFAULT '운영중',
   updated_at TEXT NOT NULL
 );
+
+-- [AI-RAG] 비정형 매뉴얼·업무규정 벡터 스토어 (rag_vector_docs — RBAC Metadata Filtering 지원)
+CREATE TABLE IF NOT EXISTS rag_vector_docs (
+  doc_id TEXT PRIMARY KEY,
+  module_id TEXT NOT NULL,
+  min_perm_level TEXT NOT NULL DEFAULT '조회',
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tcode TEXT NOT NULL DEFAULT '',
+  route_path TEXT NOT NULL DEFAULT '',
+  embedding_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 /**

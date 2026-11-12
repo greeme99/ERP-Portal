@@ -731,6 +731,27 @@ export function createSqliteDao(dbFilePath) {
         .all(safeLimit);
     },
 
+    appendAuditLogSync({ userId = "system", userRole = "관리자", storeKey = "ai.exaone", entityId = "-", action = "EXAONE_FALLBACK", summary = "", payloadSnapshot = null }) {
+      const conn = ensureDb();
+      const ts = nowIso();
+      conn
+        .prepare(`
+          INSERT INTO audit_logs (user_id, user_role, store_key, entity_id, action, summary, payload_snapshot, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          String(userId),
+          String(userRole),
+          String(storeKey),
+          String(entityId),
+          String(action),
+          String(summary),
+          payloadSnapshot ? JSON.stringify(payloadSnapshot) : null,
+          ts
+        );
+      return { ok: true, createdAt: ts };
+    },
+
     /**
      * 12종 기준정보(MDM) 정규화 물리 테이블별 등록 건수 및 상태를 반환한다.
      */

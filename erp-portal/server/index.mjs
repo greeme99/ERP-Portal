@@ -9,6 +9,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { createStorage, isValidKey, validateEntities } from "./storage.mjs";
 import { checkAuthz, identityFromHeaders, PERM_ORDER } from "./authz.mjs";
 import { SELF_CONTAINED_RULES } from "../shared/businessRules.mjs";
+import { callExaoneChat, getExaoneConfigStatus, updateExaoneRuntimeConfig } from "./exaone.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 5177);
@@ -190,6 +191,27 @@ async function route(req, res, url) {
   if (segments[1] === "mdm" && segments[2] === "status" && req.method === "GET") {
     const mdmStatus = await storage.getMdmStatus();
     return send(res, 200, { ok: true, data: mdmStatus });
+  }
+
+  // AI Copilot 2단계 Fallback — LG AI Research K-EXAONE 2.5 (k-exaone_v2.5) 설정 조회/변경 및 채팅 추론 엔드포인트
+  if (segments[1] === "ai" && segments[2] === "exaone") {
+    if (segments[3] === "config" && req.method === "GET") {
+      return send(res, 200, { ok: true, data: getExaoneConfigStatus() });
+    }
+    if (segments[3] === "config" && req.method === "POST") {
+      const body = await readBody(req);
+      const updated = updateExaoneRuntimeConfig(body);
+      return send(res, 200, { ok: true, data: updated });
+    }
+    if (segments[3] === "chat" && req.method === "POST") {
+      const identity = identityFromHeaders(req.headers);
+      const body = await readBody(req);
+      if (!Array.isArray(body?.messages) || body.messages.length === 0) {
+        return fail(res, 400, "messages 배열이 필요합니다.");
+      }
+      const result = await callExaoneChat({ ...body, storage, identity });
+      return send(res, 200, result);
+    }
   }
 
   // ID 순번 구간 예약

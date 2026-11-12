@@ -136,6 +136,12 @@ export function createStorage(dataDir) {
       return dao.listAuditLogsSync(storeKey, limit);
     },
 
+    async appendAuditLog(entry) {
+      return serialize("_audit", async () => {
+        return dao.appendAuditLogSync(entry);
+      });
+    },
+
     async getMdmStatus() {
       return dao.getMdmStatusSync();
     },
