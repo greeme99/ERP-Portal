@@ -1,4 +1,4 @@
-// Repository / DAO 계층 — SQLite 하이브리드 스키마를 캡슐화한다.
+// Repository / DAO 계층 — SQLite 하이브리드 스키마 및 12종 정규화 기준정보(MDM) 테이블을 캡슐화한다.
 // 향후 PostgreSQL 등 엔터프라이즈 RDBMS 로 전환 시 본 모듈의 메서드 시그니처만 유지하여 드라이버를 교체한다.
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,6 +12,289 @@ const MAX_RESERVE = 10_000;
 const DOCTYPE_PATTERN = /^[A-Z][A-Z0-9]{0,7}$/;
 const PERIOD_PATTERN = /^[0-9]{2,6}$/;
 const MAX_DOC_SEQ = 999_999;
+
+/**
+ * 12종 기준정보 스토어 키가 저장될 때 대응하는 정규화 MDM 물리 테이블(mdm_*)에 실시간 동기화한다.
+ * @param {import("node:sqlite").DatabaseSync} conn
+ * @param {string} key
+ * @param {any[]} rows
+ * @param {string} ts
+ */
+function syncMdmPhysicalTable(conn, key, rows, ts) {
+  switch (key) {
+    case "master.material": {
+      conn.prepare("DELETE FROM mdm_material").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_material (
+          id, code, name, type, uom, price, labor, stock, safety,
+          lead_time_weeks, lead_time_category, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.type ?? "원자재"),
+          String(r.uom ?? "EA"),
+          Number(r.price ?? 0),
+          Number(r.labor ?? 0),
+          Number(r.stock ?? 0),
+          Number(r.safety ?? 0),
+          Number(r.leadTimeWeeks ?? 1),
+          String(r.leadTimeCategory ?? "단납기"),
+          String(r.status ?? "사용"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.bom": {
+      conn.prepare("DELETE FROM mdm_bom").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_bom (id, parent, child, qty, uom, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.parent ?? ""),
+          String(r.child ?? ""),
+          Number(r.qty ?? 1),
+          String(r.uom ?? "EA"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.partner": {
+      conn.prepare("DELETE FROM mdm_partner").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_partner (id, code, name, type, country, currency, pay_term, status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.type ?? "고객"),
+          String(r.country ?? "KR"),
+          String(r.currency ?? "KRW"),
+          String(r.payTerm ?? ""),
+          String(r.status ?? "거래중"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.customer": {
+      conn.prepare("DELETE FROM mdm_customer").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_customer (
+          id, code, name, country, currency, pay_term, grade, credit_limit, credit_used, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.country ?? "KR"),
+          String(r.currency ?? "KRW"),
+          String(r.payTerm ?? ""),
+          String(r.grade ?? "B"),
+          Number(r.creditLimit ?? 0),
+          Number(r.creditUsed ?? 0),
+          String(r.status ?? "거래중"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.supplier": {
+      conn.prepare("DELETE FROM mdm_supplier").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_supplier (
+          id, code, name, item_group, country, currency, pay_term,
+          lead_time_weeks, moq, quality_grade, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.itemGroup ?? ""),
+          String(r.country ?? "KR"),
+          String(r.currency ?? "KRW"),
+          String(r.payTerm ?? ""),
+          Number(r.leadTimeWeeks ?? 1),
+          Number(r.moq ?? 0),
+          String(r.qualityGrade ?? "B"),
+          String(r.status ?? "거래중"),
+          ts
+        );
+      }
+      break;
+    }
+    case "mdm.work_center":
+    case "master.work_center": {
+      conn.prepare("DELETE FROM mdm_work_center").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_work_center (
+          id, work_center_code, work_center_name, process_category,
+          hourly_labor_rate, hourly_overhead_rate, daily_capacity_hours, status, plant_name, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.workCenterCode ?? r.code ?? r.id),
+          String(r.workCenterName ?? r.name ?? ""),
+          String(r.processCategory ?? "메인 조립"),
+          Number(r.hourlyLaborRate ?? 0),
+          Number(r.hourlyOverheadRate ?? 0),
+          Number(r.dailyCapacityHours ?? 8),
+          String(r.status ?? "사용중"),
+          String(r.plantName ?? ""),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.warehouse": {
+      conn.prepare("DELETE FROM mdm_warehouse").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_warehouse (id, code, name, plant, type, status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.plant ?? ""),
+          String(r.type ?? "완제품"),
+          String(r.status ?? "사용"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.plant": {
+      conn.prepare("DELETE FROM mdm_plant").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_plant (id, code, name, region, address, manager, line_count, daily_capacity, status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.region ?? ""),
+          String(r.address ?? ""),
+          String(r.manager ?? ""),
+          Number(r.lineCount ?? 0),
+          Number(r.dailyCapacity ?? 0),
+          String(r.status ?? "가동중"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.equipment": {
+      conn.prepare("DELETE FROM mdm_equipment").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_equipment (
+          id, code, name, type, plant, work_center, acquired_at, rated_capacity, pm_cycle_days, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.type ?? ""),
+          String(r.plant ?? ""),
+          String(r.workCenter ?? ""),
+          String(r.acquiredAt ?? ""),
+          Number(r.ratedCapacity ?? 0),
+          Number(r.pmCycleDays ?? 30),
+          String(r.status ?? "정상"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.gl_account": {
+      conn.prepare("DELETE FROM mdm_gl_account").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_gl_account (id, code, name, category, drcr, parent_code, use_yn, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.category ?? "자산"),
+          String(r.drcr ?? "차변"),
+          String(r.parentCode ?? ""),
+          String(r.useYn ?? "Y"),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.fx_rate": {
+      conn.prepare("DELETE FROM mdm_fx_rate").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_fx_rate (id, currency, rate_date, base_rate, buy_rate, sell_rate, quote_seq, source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.currency ?? "USD"),
+          String(r.rateDate ?? ""),
+          Number(r.baseRate ?? 0),
+          Number(r.buyRate ?? 0),
+          Number(r.sellRate ?? 0),
+          Number(r.quoteSeq ?? 1),
+          String(r.source ?? ""),
+          ts
+        );
+      }
+      break;
+    }
+    case "master.org": {
+      conn.prepare("DELETE FROM mdm_org").run();
+      const stmt = conn.prepare(`
+        INSERT INTO mdm_org (id, code, name, org_type, parent_code, company, head, headcount, status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const r of rows) {
+        stmt.run(
+          String(r.id),
+          String(r.code ?? r.id),
+          String(r.name ?? ""),
+          String(r.orgType ?? "팀"),
+          String(r.parentCode ?? ""),
+          String(r.company ?? "(주)그린전자"),
+          String(r.head ?? ""),
+          Number(r.headcount ?? 0),
+          String(r.status ?? "운영중"),
+          ts
+        );
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
 
 export function createSqliteDao(dbFilePath) {
   /** @type {import("node:sqlite").DatabaseSync | null} */
@@ -38,7 +321,6 @@ export function createSqliteDao(dbFilePath) {
       const countRow = conn.prepare("SELECT COUNT(*) AS cnt FROM erp_store_registry").get();
       const existingCount = Number(countRow?.cnt ?? 0);
 
-      // 시퀀스 기본값 보장
       conn
         .prepare(
           "INSERT OR IGNORE INTO sequences (seq_key, current_val, updated_at) VALUES (?, ?, ?)"
@@ -47,7 +329,6 @@ export function createSqliteDao(dbFilePath) {
 
       if (existingCount > 0 || !legacyDataDir) return;
 
-      // 레거시 JSON 파일 자동 이관
       let files = [];
       try {
         files = await readdir(legacyDataDir);
@@ -109,11 +390,6 @@ export function createSqliteDao(dbFilePath) {
       }
     },
 
-    /**
-     * 특정 store_key 의 엔티티 배열을 조회한다. 한 번도 생성되지 않은 키면 null 반환.
-     * @param {string} key
-     * @returns {any[] | null}
-     */
     readStoreSync(key) {
       const conn = ensureDb();
       const reg = conn
@@ -136,10 +412,6 @@ export function createSqliteDao(dbFilePath) {
       return result;
     },
 
-    /**
-     * 등록된 모든 store_key 의 전체 스냅샷을 단일 패스로 고속 조회한다.
-     * @returns {Record<string, any[]>}
-     */
     readAllStoresSync() {
       const conn = ensureDb();
       const out = {};
@@ -158,19 +430,15 @@ export function createSqliteDao(dbFilePath) {
         try {
           out[k].push(JSON.parse(String(r.payload)));
         } catch {
-          /* 손상된 행 무시 */
+          /* 무시 */
         }
       }
       return out;
     },
 
     /**
-     * 특정 store_key 의 전체 엔티티를 원자적 트랜잭션으로 저장하고 버전과 감사로그를 갱신한다.
-     * @param {string} key
-     * @param {any[]} rows
-     * @param {{ id?: string; role?: string }} [identity]
-     * @param {string} [action]
-     * @param {string} [entityId]
+     * 특정 store_key 의 전체 엔티티를 원자적 트랜잭션으로 저장하고,
+     * 기준정보(master.* / mdm.*)인 경우 대응하는 정규화 MDM 물리 테이블에도 동시 동기화한다.
      */
     writeStoreSync(key, rows, identity = {}, action = "PUT", entityId = "*") {
       const conn = ensureDb();
@@ -208,6 +476,9 @@ export function createSqliteDao(dbFilePath) {
           insertStmt.run(key, String(item.id), i, JSON.stringify(item), nextVer, ts, userId);
         }
 
+        // 12종 기준정보(MDM) 정규화 물리 테이블 동기화
+        syncMdmPhysicalTable(conn, key, rows, ts);
+
         conn
           .prepare(`
             INSERT INTO audit_logs (user_id, user_role, store_key, entity_id, action, summary, created_at)
@@ -227,9 +498,6 @@ export function createSqliteDao(dbFilePath) {
       });
     },
 
-    /**
-     * 현재 시퀀스 값을 읽는다.
-     */
     readSequenceSync() {
       const conn = ensureDb();
       const row = conn
@@ -241,10 +509,6 @@ export function createSqliteDao(dbFilePath) {
         : SEQUENCE_START;
     },
 
-    /**
-     * 겹치지 않는 ID 구간을 원자적으로 예약한다.
-     * @param {number} count
-     */
     reserveSequenceSync(count) {
       const conn = ensureDb();
       const size = Math.min(Math.max(Math.trunc(count) || 1, 1), MAX_RESERVE);
@@ -262,10 +526,6 @@ export function createSqliteDao(dbFilePath) {
       });
     },
 
-    /**
-     * 엔티티 id 에서 숫자를 관찰해 최고 수위를 갱신한다.
-     * @param {any[]} rows
-     */
     observeIdsSync(rows) {
       let max = 0;
       for (const row of rows) {
@@ -283,11 +543,6 @@ export function createSqliteDao(dbFilePath) {
         .run(max, nowIso(), SEQUENCE_KEY);
     },
 
-    /**
-     * 문서번호를 문서유형·기간별로 무결번 발급한다.
-     * @param {string} docType
-     * @param {string} period
-     */
     nextDocNumberSync(docType, period) {
       if (!DOCTYPE_PATTERN.test(String(docType))) {
         throw Object.assign(new Error("허용되지 않은 문서유형입니다."), { status: 400 });
@@ -325,10 +580,6 @@ export function createSqliteDao(dbFilePath) {
       });
     },
 
-    /**
-     * 저장되는 행의 code 에서 문서번호를 관찰해 수위를 올린다.
-     * @param {any[]} rows
-     */
     observeDocNumbersSync(rows) {
       const highest = new Map();
       for (const row of rows) {
@@ -357,18 +608,6 @@ export function createSqliteDao(dbFilePath) {
       });
     },
 
-    /**
-     * 프론트엔드 인메모리(EntityStore)에서 시뮬레이션한 결과를 백엔드 SQLite DB에
-     * 단일 원자적 트랜잭션(ACID)으로 확정(Commit) 저장하고 확정 버전을 발급한다.
-     * @param {{
-     *   module: string;
-     *   planPeriod: string;
-     *   planType: string;
-     *   comment?: string;
-     *   stores: Record<string, any[]>;
-     * }} payload
-     * @param {{ id?: string; role?: string }} [identity]
-     */
     commitSimulationSync(payload, identity = {}) {
       const conn = ensureDb();
       const moduleName = String(payload?.module || "SCM").toUpperCase();
@@ -438,11 +677,6 @@ export function createSqliteDao(dbFilePath) {
       });
     },
 
-    /**
-     * 확정된 시뮬레이션 트랜잭션 이력 목록을 조회한다 (스냅샷 본문 제외, 메타데이터만 반환).
-     * @param {string} [module]
-     * @param {number} [limit]
-     */
     listConfirmedTransactionsSync(module, limit = 50) {
       const conn = ensureDb();
       const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
@@ -471,11 +705,6 @@ export function createSqliteDao(dbFilePath) {
         .all(safeLimit);
     },
 
-    /**
-     * 감사 로그(Audit Trail) 목록을 조회한다.
-     * @param {string} [storeKey]
-     * @param {number} [limit]
-     */
     listAuditLogsSync(storeKey, limit = 100) {
       const conn = ensureDb();
       const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
@@ -503,8 +732,40 @@ export function createSqliteDao(dbFilePath) {
     },
 
     /**
-     * DB 통계 요약 정보를 반환한다 (/api/health 용).
+     * 12종 기준정보(MDM) 정규화 물리 테이블별 등록 건수 및 상태를 반환한다.
      */
+    getMdmStatusSync() {
+      const conn = ensureDb();
+      const tables = [
+        { menuCode: "MDM-01", table: "mdm_material", storeKey: "master.material", label: "품목 마스터" },
+        { menuCode: "MDM-02", table: "mdm_bom", storeKey: "master.bom", label: "BOM 마스터" },
+        { menuCode: "MDM-03", table: "mdm_partner", storeKey: "master.partner", label: "거래처 통합 마스터" },
+        { menuCode: "SD-01", table: "mdm_customer", storeKey: "master.customer", label: "고객 여신 마스터" },
+        { menuCode: "MDM-04", table: "mdm_supplier", storeKey: "master.supplier", label: "공급사 마스터" },
+        { menuCode: "MDM-05", table: "mdm_work_center", storeKey: "mdm.work_center", label: "작업장 마스터" },
+        { menuCode: "MDM-06", table: "mdm_warehouse", storeKey: "master.warehouse", label: "창고 마스터" },
+        { menuCode: "MDM-07", table: "mdm_plant", storeKey: "master.plant", label: "공장 마스터" },
+        { menuCode: "MDM-08", table: "mdm_equipment", storeKey: "master.equipment", label: "설비 마스터" },
+        { menuCode: "MDM-09", table: "mdm_gl_account", storeKey: "master.gl_account", label: "계정과목 마스터" },
+        { menuCode: "MDM-10", table: "mdm_fx_rate", storeKey: "master.fx_rate", label: "환율 마스터" },
+        { menuCode: "MDM-11", table: "mdm_org", storeKey: "master.org", label: "조직 마스터" },
+      ];
+
+      return tables.map((t) => {
+        const count = Number(conn.prepare(`SELECT COUNT(*) AS cnt FROM ${t.table}`).get()?.cnt ?? 0);
+        const reg = conn
+          .prepare("SELECT version, updated_at AS updatedAt, updated_by AS updatedBy FROM erp_store_registry WHERE store_key = ?")
+          .get(t.storeKey);
+        return {
+          ...t,
+          rowCount: count,
+          version: Number(reg?.version ?? 0),
+          updatedAt: reg?.updatedAt ?? null,
+          updatedBy: reg?.updatedBy ?? null,
+        };
+      });
+    },
+
     getStatsSync() {
       const conn = ensureDb();
       const storeCount = Number(
@@ -519,11 +780,15 @@ export function createSqliteDao(dbFilePath) {
       const auditCount = Number(
         conn.prepare("SELECT COUNT(*) AS cnt FROM audit_logs").get()?.cnt ?? 0
       );
+      const mdmTables = this.getMdmStatusSync();
+      const mdmTotalRows = mdmTables.reduce((s, t) => s + t.rowCount, 0);
       return {
         engine: "SQLite (WAL Mode)",
         dbPath: dbFilePath,
         storeCount,
         entityCount,
+        mdmTableCount: mdmTables.length,
+        mdmTotalRows,
         commitCount,
         auditCount,
       };
@@ -541,4 +806,3 @@ export function createSqliteDao(dbFilePath) {
     },
   };
 }
-

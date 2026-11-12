@@ -1,25 +1,11 @@
 // MDM-005 작업장마스터 (Work Center Master) — 생산 라인별 공정 작업장·시간당 가공비 임율(Rate)·CAPA 마스터
 import { useState } from "react";
-import { useStore, createStore, nextId } from "../../services/store";
+import { useStore, nextId } from "../../services/store";
+import { workCenterMasterStore, WorkCenterMasterItem } from "../../data/mock/master";
 import MassUpdateBar, { MassColumn } from "../../components/common/MassUpdateBar";
 
-export interface WorkCenterMasterItem {
-  id: string;
-  workCenterCode: string;
-  workCenterName: string;
-  processCategory: "사출/프레스" | "자동 SMT" | "메인 조립" | "품질 에이징";
-  hourlyLaborRate: number; // 시간당 노무비 임율 (원/h)
-  hourlyOverheadRate: number; // 시간당 제조간접비 임율 (원/h)
-  dailyCapacityHours: number; // 일일 가용 CAPA 시간 (h)
-  status: "사용중" | "점검중";
-  plantName: string;
-}
-
-export const workCenterMasterStore = createStore("mdm.work_center", [
-  { id: "WC-01", workCenterCode: "WC-PRESS-01", workCenterName: "1번 사출 프레스 작업장", processCategory: "사출/프레스", hourlyLaborRate: 25000, hourlyOverheadRate: 35000, dailyCapacityHours: 16, status: "사용중", plantName: "제1제조공장" },
-  { id: "WC-02", workCenterCode: "WC-SMT-01", workCenterName: "자동 SMT 라인 1호기", processCategory: "자동 SMT", hourlyLaborRate: 30000, hourlyOverheadRate: 48000, dailyCapacityHours: 24, status: "사용중", plantName: "제1제조공장" },
-  { id: "WC-03", workCenterCode: "WC-ASSY-01", workCenterName: "메인 조립 A라인", processCategory: "메인 조립", hourlyLaborRate: 22000, hourlyOverheadRate: 18000, dailyCapacityHours: 16, status: "사용중", plantName: "제2제조공장" },
-]);
+export { workCenterMasterStore };
+export type { WorkCenterMasterItem };
 
 export default function WorkCenterMaster() {
   const items = useStore(workCenterMasterStore) as WorkCenterMasterItem[];

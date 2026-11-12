@@ -140,14 +140,33 @@ export const fxRateStore = createStore("master.fx_rate", [
 
 // MDM-11 조직 마스터
 export const orgStore = createStore("master.org", [
-  { id: "ORG-100", code: "ORG-100", name: "대표이사", orgType: "본부", parentCode: "", company: "(주)헤르메스 전자", head: "정대표", headcount: 3, status: "운영중" },
-  { id: "ORG-200", code: "ORG-200", name: "영업본부", orgType: "본부", parentCode: "ORG-100", company: "(주)헤르메스 전자", head: "김영업", headcount: 42, status: "운영중" },
-  { id: "ORG-210", code: "ORG-210", name: "국내영업팀", orgType: "팀", parentCode: "ORG-200", company: "(주)헤르메스 전자", head: "최국내", headcount: 18, status: "운영중" },
-  { id: "ORG-220", code: "ORG-220", name: "해외영업팀", orgType: "팀", parentCode: "ORG-200", company: "(주)헤르메스 전자", head: "한해외", headcount: 12, status: "운영중" },
-  { id: "ORG-300", code: "ORG-300", name: "생산본부", orgType: "본부", parentCode: "ORG-100", company: "(주)헤르메스 전자", head: "이생산", headcount: 156, status: "운영중" },
-  { id: "ORG-310", code: "ORG-310", name: "생산관리팀", orgType: "팀", parentCode: "ORG-300", company: "(주)헤르메스 전자", head: "박관리", headcount: 14, status: "운영중" },
-  { id: "ORG-320", code: "ORG-320", name: "제조1파트", orgType: "파트", parentCode: "ORG-300", company: "(주)헤르메스 전자", head: "조제조", headcount: 68, status: "운영중" },
-  { id: "ORG-400", code: "ORG-400", name: "품질보증본부", orgType: "본부", parentCode: "ORG-100", company: "(주)헤르메스 전자", head: "윤품질", headcount: 31, status: "운영중" },
-  { id: "ORG-500", code: "ORG-500", name: "경영지원본부", orgType: "본부", parentCode: "ORG-100", company: "(주)헤르메스 전자", head: "강지원", headcount: 27, status: "운영중" },
-  { id: "ORG-590", code: "ORG-590", name: "신사업TF", orgType: "파트", parentCode: "ORG-500", company: "(주)헤르메스 전자", head: "미정", headcount: 0, status: "신설예정" },
+  { id: "ORG-100", code: "ORG-100", name: "대표이사", orgType: "본부", parentCode: "", company: "(주)그린전자", head: "정대표", headcount: 3, status: "운영중" },
+  { id: "ORG-200", code: "ORG-200", name: "영업본부", orgType: "본부", parentCode: "ORG-100", company: "(주)그린전자", head: "김영업", headcount: 42, status: "운영중" },
+  { id: "ORG-210", code: "ORG-210", name: "국내영업팀", orgType: "팀", parentCode: "ORG-200", company: "(주)그린전자", head: "최국내", headcount: 18, status: "운영중" },
+  { id: "ORG-220", code: "ORG-220", name: "해외영업팀", orgType: "팀", parentCode: "ORG-200", company: "(주)그린전자", head: "한해외", headcount: 12, status: "운영중" },
+  { id: "ORG-300", code: "ORG-300", name: "생산본부", orgType: "본부", parentCode: "ORG-100", company: "(주)그린전자", head: "이생산", headcount: 156, status: "운영중" },
+  { id: "ORG-310", code: "ORG-310", name: "생산관리팀", orgType: "팀", parentCode: "ORG-300", company: "(주)그린전자", head: "박관리", headcount: 14, status: "운영중" },
+  { id: "ORG-320", code: "ORG-320", name: "제조1파트", orgType: "파트", parentCode: "ORG-300", company: "(주)그린전자", head: "조제조", headcount: 68, status: "운영중" },
+  { id: "ORG-400", code: "ORG-400", name: "품질보증본부", orgType: "본부", parentCode: "ORG-100", company: "(주)그린전자", head: "윤품질", headcount: 31, status: "운영중" },
+  { id: "ORG-500", code: "ORG-500", name: "경영지원본부", orgType: "본부", parentCode: "ORG-100", company: "(주)그린전자", head: "강지원", headcount: 27, status: "운영중" },
+  { id: "ORG-590", code: "ORG-590", name: "혁신기획팀", orgType: "팀", parentCode: "ORG-500", company: "(주)그린전자", head: "김문규", headcount: 8, status: "운영중" },
+]);
+
+// MDM-05 작업장 마스터 (Work Center Master)
+export interface WorkCenterMasterItem {
+  id: string;
+  workCenterCode: string;
+  workCenterName: string;
+  processCategory: "사출/프레스" | "자동 SMT" | "메인 조립" | "품질 에이징";
+  hourlyLaborRate: number;
+  hourlyOverheadRate: number;
+  dailyCapacityHours: number;
+  status: "사용중" | "점검중";
+  plantName: string;
+}
+
+export const workCenterMasterStore = createStore("mdm.work_center", [
+  { id: "WC-01", workCenterCode: "WC-PRESS-01", workCenterName: "1번 사출 프레스 작업장", processCategory: "사출/프레스", hourlyLaborRate: 25000, hourlyOverheadRate: 35000, dailyCapacityHours: 16, status: "사용중", plantName: "수원 제1제조공장" },
+  { id: "WC-02", workCenterCode: "WC-SMT-01", workCenterName: "자동 SMT 라인 1호기", processCategory: "자동 SMT", hourlyLaborRate: 30000, hourlyOverheadRate: 48000, dailyCapacityHours: 24, status: "사용중", plantName: "수원 제1제조공장" },
+  { id: "WC-03", workCenterCode: "WC-ASSY-01", workCenterName: "메인 조립 A라인", processCategory: "메인 조립", hourlyLaborRate: 22000, hourlyOverheadRate: 18000, dailyCapacityHours: 16, status: "사용중", plantName: "평택 제2스마트공장" },
 ]);

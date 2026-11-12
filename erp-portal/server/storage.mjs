@@ -136,6 +136,10 @@ export function createStorage(dataDir) {
       return dao.listAuditLogsSync(storeKey, limit);
     },
 
+    async getMdmStatus() {
+      return dao.getMdmStatusSync();
+    },
+
     async getStats() {
       return dao.getStatsSync();
     },

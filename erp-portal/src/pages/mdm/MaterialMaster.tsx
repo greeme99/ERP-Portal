@@ -8,7 +8,20 @@ export default function MaterialMaster() {
       moduleLabel="12. 기준정보 (Master Data)"
       title="품목마스터"
       store={materialStore}
-      newRow={() => ({ id: nextId("MAT"), code: "", name: "", type: "원자재", uom: "EA", price: 0, labor: 0, stock: 0, safety: 0, status: "사용" })}
+      newRow={() => ({
+        id: nextId("MAT"),
+        code: "",
+        name: "",
+        type: "원자재",
+        uom: "EA",
+        price: 0,
+        labor: 0,
+        stock: 0,
+        safety: 0,
+        leadTimeWeeks: 1,
+        leadTimeCategory: "단납기",
+        status: "사용",
+      })}
       fields={[
         { key: "code", label: "품목코드", required: true },
         { key: "name", label: "품목명", required: true },
@@ -18,10 +31,32 @@ export default function MaterialMaster() {
         { key: "labor", label: "가공비(원)", type: "number", align: "right" },
         { key: "stock", label: "현재고", type: "number", align: "right" },
         { key: "safety", label: "안전재고", type: "number", align: "right" },
+        { key: "leadTimeWeeks", label: "리드타임(주)", type: "number", align: "right" },
         {
-          key: "status", label: "상태", type: "select", options: ["사용", "중지"],
+          key: "leadTimeCategory",
+          label: "납기분류",
+          type: "select",
+          options: ["단납기", "중납기", "장납기"],
+          render: (r) => {
+            const cat = String(r.leadTimeCategory ?? "단납기");
+            const cls =
+              cat === "장납기"
+                ? "bg-red-100 text-red-700 border-red-200"
+                : cat === "중납기"
+                  ? "bg-amber-100 text-amber-700 border-amber-200"
+                  : "bg-emerald-100 text-emerald-700 border-emerald-200";
+            return <span className={`px-2 py-0.5 rounded border text-[11px] font-bold ${cls}`}>{cat}</span>;
+          },
+        },
+        {
+          key: "status",
+          label: "상태",
+          type: "select",
+          options: ["사용", "중지"],
           render: (r) => (
-            <span className={r.status === "사용" ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>{r.status}</span>
+            <span className={r.status === "사용" ? "text-emerald-500 font-semibold" : "text-red-500 font-semibold"}>
+              {r.status}
+            </span>
           ),
         },
       ]}

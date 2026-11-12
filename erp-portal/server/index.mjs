@@ -186,6 +186,12 @@ async function route(req, res, url) {
     return send(res, 200, { ok: true, data: logs });
   }
 
+  // 기준정보관리(MDM) 12종 물리 테이블 상태 조회 엔드포인트
+  if (segments[1] === "mdm" && segments[2] === "status" && req.method === "GET") {
+    const mdmStatus = await storage.getMdmStatus();
+    return send(res, 200, { ok: true, data: mdmStatus });
+  }
+
   // ID 순번 구간 예약
   if (segments[1] === "sequence" && segments[2] === "reserve" && req.method === "POST") {
     const body = await readBody(req);
