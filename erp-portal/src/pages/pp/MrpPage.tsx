@@ -6,6 +6,7 @@ import { prStore } from "../../data/mock/procurement";
 import { WEEK_BUCKETS, forecastStore, ForecastItem } from "../../data/mock/scm";
 import { useStore, nextId } from "../../services/store";
 import { nextDocCode } from "../../services/docNumber";
+import SimulationCommitBar from "../../components/common/SimulationCommitBar";
 
 const TODAY = "2026-07-03";
 
@@ -113,6 +114,18 @@ export default function MrpPage() {
           </span>
         </div>
       </div>
+
+      <SimulationCommitBar
+        module="PP"
+        planType="MRP_EXPLOSION_24W"
+        planTitle="자재소요량계획 (MRP 24주 화요일 입고 역산)"
+        planPeriod="2026-W27 ~ 2026-W50 (24주)"
+        stores={{
+          "procurement.pr": prs,
+          "master.material": mats,
+        }}
+        defaultComment="24주 화요일 입고 기준 MRP 소요량 전개 및 장납기 자재 구매요청(PR) 확정"
+      />
 
       {/* 컨트롤 패널 */}
       <div className="bg-panel border border-line rounded-lg p-3 flex flex-wrap items-center gap-3 text-[12px]">

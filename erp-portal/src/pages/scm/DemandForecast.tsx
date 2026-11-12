@@ -5,6 +5,7 @@ import { materialStore } from "../../data/mock/master";
 import { mpsStore, MpsDailyItem } from "../../data/mock/production";
 import { forecastStore, forecastParamStore, mape, accuracy, CURRENT_WEEK, WEEK_BUCKETS, ForecastItem } from "../../data/mock/scm";
 import { useStore, downloadCsv, nextId } from "../../services/store";
+import SimulationCommitBar from "../../components/common/SimulationCommitBar";
 import {
   runAiStatisticalForecastEngine,
   backtestForecast,
@@ -353,6 +354,18 @@ export default function DemandForecast() {
           </span>
         </div>
       </div>
+
+      <SimulationCommitBar
+        module="SCM"
+        planType="DEMAND_FORECAST_24W"
+        planTitle="24주 수요예측 & Holt AI 통계예측"
+        planPeriod="2026-W27 ~ 2026-W50 (24주)"
+        stores={{
+          "scm.forecast": rows,
+          "scm.forecast_params": savedParams,
+        }}
+        defaultComment="24주 고객사 구매계획 및 17~24주차 Holt AI 통계예측 시뮬레이션 확정"
+      />
 
       <div className="bg-panel border border-line rounded-lg p-3 flex flex-wrap items-center gap-3 text-[11px]">
         {/* 주차 탭 필터 */}

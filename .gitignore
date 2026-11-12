@@ -9,8 +9,12 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
-# 프로토타입 백엔드의 JSON 저장소 (합성 데이터, 런타임 생성)
+# 프로토타입 및 운영 백엔드의 SQLite / JSON 저장소 및 백업 (런타임 생성)
 erp-portal/data/
+backups/
+*.db
+*.db-wal
+*.db-shm
 .vscode/
 .idea/
 *.log

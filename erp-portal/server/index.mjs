@@ -1,24 +1,22 @@
-// 표준 ERP 포탈 프로토타입 백엔드 — node:http 만 사용하는 무의존성 REST 서버.
+// 표준 ERP 포탈 백엔드 서버 — Desktop PC 기반 SQLite(WAL) DB + 정적 SPA 단일 포트 통합 서빙.
 //
 // 신뢰 경계: 브라우저에서 오는 모든 입력(경로 키, 본문)을 여기서 검증한다.
-// 이 서버는 합성 프로토타입 데이터를 다루며 인증·인가를 구현하지 않는다.
-// 운영 전환 시 서버측 인증/인가와 트랜잭션 저장소로 교체해야 한다.
+// EntityStore 인메모리 시뮬레이션 결과의 원자적 확정(Commit) 트랜잭션과 감사 로그(Audit Trail)를 제공한다.
 import { createServer } from "node:http";
+import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { createStorage, isValidKey, validateEntities } from "./storage.mjs";
-import { checkAuthz, identityFromHeaders } from "./authz.mjs";
+import { checkAuthz, identityFromHeaders, PERM_ORDER } from "./authz.mjs";
 import { SELF_CONTAINED_RULES } from "../shared/businessRules.mjs";
-import { PERM_ORDER } from "./authz.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 5177);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const DATA_DIR = process.env.DATA_DIR ?? join(HERE, "..", "data");
-// 개발용 Vite 오리진만 허용한다. 목록에 없는 오리진에는 CORS 헤더를 주지 않는다.
-// Vite 는 지정 포트가 사용 중이면 다음 포트로 올라가므로 폴백 구간까지 함께 허용한다.
-// (허용하지 않으면 CORS 가 조용히 막혀 localStorage 모드로 떨어져 원인을 찾기 어렵다)
-const DEV_PORTS = [5180, 5181, 5182, 5183];
+const DIST_DIR = resolve(process.env.DIST_DIR ?? join(HERE, "..", "dist"));
+
+const DEV_PORTS = [5177, 5180, 5181, 5182, 5183, 8080];
 const DEFAULT_ORIGINS = DEV_PORTS.flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`]).join(",");
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS)
   .split(",")
@@ -26,11 +24,25 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS)
   .filter(Boolean);
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
+
 const storage = createStorage(DATA_DIR);
 
 function applyCors(req, res) {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && (ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
@@ -50,7 +62,6 @@ function fail(res, status, message) {
 }
 
 function readBody(req) {
-  // 인가·규칙 검증 단계에서 이미 읽었으면 그 값을 재사용한다(스트림은 한 번만 읽힌다).
   if (req.__body !== undefined) return Promise.resolve(req.__body);
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -76,7 +87,6 @@ function readBody(req) {
   });
 }
 
-/** 규칙 위반을 예외 승인할 권한이 있는가. 클라이언트 approval 판정과 같은 기준이다. */
 function canApproveModule(identity, permissionRows, moduleId) {
   if (!identity?.role) return false;
   if (identity.status && identity.status !== "활성") return false;
@@ -86,24 +96,97 @@ function canApproveModule(identity, permissionRows, moduleId) {
   return PERM_ORDER.indexOf(level) >= PERM_ORDER.indexOf("승인");
 }
 
-// id 는 경로/본문 어디서 와도 서버가 신뢰하지 않고 문자열 여부만 확인한다.
 const asId = (value) => (typeof value === "string" && value.length > 0 && value.length <= 128 ? value : null);
+
+/**
+ * 단일 포트 통합 운영을 위한 정적 SPA 서빙 핸들러 (dist/ 폴더 기준).
+ */
+async function serveStaticSpa(req, res, pathname) {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return fail(res, 405, "허용되지 않은 메서드입니다.");
+  }
+  const cleanPath = pathname === "/" ? "/index.html" : pathname;
+  const candidate = resolve(join(DIST_DIR, `.${cleanPath}`));
+  if (!candidate.startsWith(DIST_DIR)) {
+    return fail(res, 400, "잘못된 경로입니다.");
+  }
+
+  try {
+    const info = await stat(candidate);
+    if (info.isFile()) {
+      const ext = extname(candidate).toLowerCase();
+      const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+      const content = await readFile(candidate);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(req.method === "HEAD" ? undefined : content);
+      return;
+    }
+  } catch {
+    // 파일이 없고 확장자가 없는 경로면 SPA index.html 폴백
+  }
+
+  if (!extname(cleanPath)) {
+    try {
+      const indexHtml = await readFile(join(DIST_DIR, "index.html"));
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+      res.end(req.method === "HEAD" ? undefined : indexHtml);
+      return;
+    } catch {
+      // dist 가 아직 빌드되지 않은 상태
+    }
+  }
+
+  return fail(res, 404, "알 수 없는 경로입니다.");
+}
 
 async function route(req, res, url) {
   const segments = url.pathname.replace(/^\/+|\/+$/g, "").split("/");
-  // /api/...
-  if (segments[0] !== "api") return fail(res, 404, "알 수 없는 경로입니다.");
+  if (segments[0] !== "api") {
+    return serveStaticSpa(req, res, url.pathname);
+  }
 
   if (segments[1] === "health" && req.method === "GET") {
     const all = await storage.readAll();
-    return send(res, 200, { ok: true, keys: Object.keys(all).length });
+    const stats = await storage.getStats();
+    return send(res, 200, { ok: true, keys: Object.keys(all).length, db: stats });
   }
 
   if (segments[1] === "snapshot" && req.method === "GET") {
     return send(res, 200, { ok: true, data: await storage.readAll() });
   }
 
-  // ID 순번 구간 예약 — 클라이언트가 동기로 id 를 발급하면서도 서로 겹치지 않게 한다.
+  // 시뮬레이션 확정(Commit) 엔드포인트 — 프론트엔드 인메모리 시뮬레이션 값을 SQLite에 원자적으로 영속화
+  if (segments[1] === "simulation" && segments[2] === "commit" && req.method === "POST") {
+    const identity = identityFromHeaders(req.headers);
+    const body = await readBody(req);
+    if (!body || typeof body !== "object" || !body.stores || typeof body.stores !== "object") {
+      return fail(res, 400, "확정할 stores 객체가 필요합니다.");
+    }
+    try {
+      const committed = await storage.commitSimulation(body, identity);
+      return send(res, 201, { ok: true, data: committed });
+    } catch (error) {
+      return fail(res, error.status ?? 500, error.message);
+    }
+  }
+
+  // 시뮬레이션 확정 이력(History) 조회 엔드포인트
+  if (segments[1] === "simulation" && segments[2] === "history" && req.method === "GET") {
+    const moduleName = url.searchParams.get("module") || undefined;
+    const limit = Number(url.searchParams.get("limit") || 50);
+    const history = await storage.listConfirmedTransactions(moduleName, limit);
+    return send(res, 200, { ok: true, data: history });
+  }
+
+  // 감사 로그(Audit Trail) 조회 엔드포인트
+  if (segments[1] === "audit-logs" && req.method === "GET") {
+    const storeKey = url.searchParams.get("storeKey") || undefined;
+    const limit = Number(url.searchParams.get("limit") || 100);
+    const logs = await storage.listAuditLogs(storeKey, limit);
+    return send(res, 200, { ok: true, data: logs });
+  }
+
+  // ID 순번 구간 예약
   if (segments[1] === "sequence" && segments[2] === "reserve" && req.method === "POST") {
     const body = await readBody(req);
     const count = Number(body?.count ?? 1);
@@ -116,7 +199,7 @@ async function route(req, res, url) {
     }
   }
 
-  // 문서번호 채번 — 문서유형·기간별 무결번. 전표·발주서 등 감사 대상 번호에 쓴다.
+  // 문서번호 채번
   if (segments[1] === "docnumber" && segments[2] === "next" && req.method === "POST") {
     const body = await readBody(req);
     try {
@@ -134,16 +217,14 @@ async function route(req, res, url) {
   const rowId = segments[3] ? asId(decodeURIComponent(segments[3])) : null;
   if (segments[3] && !rowId) return fail(res, 400, "허용되지 않은 id 입니다.");
 
-  // 서버측 인가 재검증 — 클라이언트 우회로 인한 오조작을 막는다.
-  // (인증이 없어 신원 헤더는 위조 가능하므로 암호학적 경계는 아니다)
+  const identity = identityFromHeaders(req.headers);
+
+  // 서버측 인가 및 업무 규칙 재검증
   if (req.method !== "GET") {
-    const identity = identityFromHeaders(req.headers);
     const permissionRows = (await storage.read("platform.permission")) ?? [];
     const verdict = checkAuthz({ identity, permissionRows, key, method: req.method });
     if (!verdict.allowed) return fail(res, 403, `권한이 없습니다: ${verdict.reason}`);
 
-    // 업무 규칙 재검증 — UI 를 우회한 요청에도 자기완결 규칙을 적용한다.
-    // 규칙 함수는 클라이언트 User Exit 과 같은 파일(shared/businessRules.mjs)을 쓴다.
     const rule = SELF_CONTAINED_RULES[key];
     if (rule && (req.method === "POST" || req.method === "PUT" || req.method === "PATCH")) {
       const body = await readBody(req);
@@ -162,7 +243,6 @@ async function route(req, res, url) {
           return fail(res, 422, `업무 규칙 위반 [${outcome.ruleId}] ${docs.length > 1 ? `${i + 1}번째 행: ` : ""}${outcome.message}`);
         }
       }
-      // 본문을 이미 읽었으므로 아래 핸들러가 다시 읽지 않도록 캐시해 둔다.
       req.__body = body;
     }
   }
@@ -171,12 +251,11 @@ async function route(req, res, url) {
     return send(res, 200, { ok: true, data: (await storage.read(key)) ?? [] });
   }
 
-  // 일괄 업로드 등 N건을 원자적으로 반영해야 하는 경로.
   if (req.method === "PUT" && !rowId) {
     const body = await readBody(req);
     const invalid = validateEntities(body?.data);
     if (invalid) return fail(res, 400, invalid);
-    const saved = await storage.write(key, body.data);
+    const saved = await storage.write(key, body.data, identity, "PUT");
     await storage.observeIds(saved);
     await storage.observeDocNumbers(saved);
     return send(res, 200, { ok: true, data: saved });
@@ -188,12 +267,18 @@ async function route(req, res, url) {
     if (row === null || typeof row !== "object" || Array.isArray(row)) return fail(res, 400, "row 객체가 필요합니다.");
     if (!asId(row.id)) return fail(res, 400, "row.id 가 필요합니다.");
     try {
-      const next = await storage.mutate(key, (current) => {
-        if (current.some((r) => r.id === row.id)) {
-          throw Object.assign(new Error(`이미 존재하는 id 입니다: ${row.id}`), { status: 409 });
-        }
-        return [row, ...current];
-      });
+      const next = await storage.mutate(
+        key,
+        (current) => {
+          if (current.some((r) => r.id === row.id)) {
+            throw Object.assign(new Error(`이미 존재하는 id 입니다: ${row.id}`), { status: 409 });
+          }
+          return [row, ...current];
+        },
+        identity,
+        "POST",
+        row.id
+      );
       await storage.observeIds([row]);
       await storage.observeDocNumbers([row]);
       return send(res, 201, { ok: true, data: next });
@@ -206,15 +291,20 @@ async function route(req, res, url) {
     const body = await readBody(req);
     const patch = body?.patch;
     if (patch === null || typeof patch !== "object" || Array.isArray(patch)) return fail(res, 400, "patch 객체가 필요합니다.");
-    const { id: _ignored, ...safePatch } = patch; // id 는 변경 대상이 아니다
+    const { id: _ignored, ...safePatch } = patch;
     try {
       let found = false;
-      const next = await storage.mutate(key, (current) =>
-        current.map((r) => {
-          if (r.id !== rowId) return r;
-          found = true;
-          return { ...r, ...safePatch, id: rowId };
-        })
+      const next = await storage.mutate(
+        key,
+        (current) =>
+          current.map((r) => {
+            if (r.id !== rowId) return r;
+            found = true;
+            return { ...r, ...safePatch, id: rowId };
+          }),
+        identity,
+        "PATCH",
+        rowId
       );
       if (!found) return fail(res, 404, `대상을 찾지 못했습니다: ${rowId}`);
       return send(res, 200, { ok: true, data: next });
@@ -227,7 +317,13 @@ async function route(req, res, url) {
     const ids = rowId ? [rowId] : (await readBody(req))?.ids;
     if (!Array.isArray(ids) || ids.length === 0 || !ids.every(asId)) return fail(res, 400, "ids 배열이 필요합니다.");
     const targets = new Set(ids);
-    const next = await storage.mutate(key, (current) => current.filter((r) => !targets.has(r.id)));
+    const next = await storage.mutate(
+      key,
+      (current) => current.filter((r) => !targets.has(r.id)),
+      identity,
+      "DELETE",
+      ids.join(",")
+    );
     return send(res, 200, { ok: true, data: next });
   }
 
@@ -248,15 +344,20 @@ export const server = createServer((req, res) => {
   });
 });
 
+server.on("close", () => {
+  storage.close();
+});
+
 export async function start(port = PORT, host = HOST) {
   await storage.init();
   await new Promise((resolve) => server.listen(port, host, resolve));
   const actual = server.address();
-  console.log(`[ERP backend] http://${host}:${typeof actual === "object" && actual ? actual.port : port}  data=${DATA_DIR}`);
+  console.log(
+    `[ERP SQLite Server] http://${host}:${typeof actual === "object" && actual ? actual.port : port}  db=${join(DATA_DIR, "erp.db")}`
+  );
   return server;
 }
 
-// 직접 실행된 경우에만 리스닝한다 (테스트에서 import 가능하게)
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   start();
 }

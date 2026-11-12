@@ -12,6 +12,7 @@ import {
   ContingencySimItem,
 } from "../../data/mock/scm";
 import { useStore, downloadCsv } from "../../services/store";
+import SimulationCommitBar from "../../components/common/SimulationCommitBar";
 
 const CONTINGENCY_OPTIONS = [
   { id: "outsourcing", name: "🏭 비상 외주(Outsourcing) 할당", owner: "생산팀", avgCost: 15000000 },
@@ -71,6 +72,18 @@ export default function Sop() {
           <span className="text-[11px] text-sub">3주~24주 주단위 버킷 · 재고과부족 시뮬레이션 & 비상공급대책 의사결정</span>
         </div>
       </div>
+
+      <SimulationCommitBar
+        module="SCM"
+        planType="SOP_CONTINGENCY_24W"
+        planTitle="S&OP 3~24주 비상공급대책 (Contingency Plan)"
+        planPeriod="2026-W29 ~ 2026-W50 (22주)"
+        stores={{
+          "scm.contingency": ctgItems,
+          "scm.sop": sops,
+        }}
+        defaultComment="S&OP 3~24주 재고 과부족 시뮬레이션 및 비상 공급대책 합의안 확정"
+      />
 
       {/* 요약 KPI 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

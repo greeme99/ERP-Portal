@@ -15,9 +15,9 @@ function StorageBadge() {
   const status = useSyncExternalStore(subscribeBackendStatus, getBackendStatus, getBackendStatus);
   if (status === "rest") {
     return (
-      <span className="hidden sm:flex items-center gap-1.5 text-emerald-600 font-semibold" title="변경이 백엔드 서버에 저장됩니다.">
+      <span className="hidden sm:flex items-center gap-1.5 text-emerald-600 font-semibold" title="Desktop PC SQLite(WAL) 백엔드 서버와 실시간 연동 중입니다.">
         <span className="w-2 h-2 rounded-full bg-emerald-500" />
-        REST 백엔드 연결
+        SQLite DB 서버 연결 (WAL)
       </span>
     );
   }
@@ -26,12 +26,12 @@ function StorageBadge() {
       className={`hidden sm:flex items-center gap-1.5 font-semibold ${isRestConfigured() ? "text-amber-600" : "text-sub"}`}
       title={
         isRestConfigured()
-          ? "백엔드 서버에 연결하지 못해 이 브라우저에만 저장됩니다."
-          : "프로토타입 모드 — 변경은 이 브라우저에만 저장됩니다."
+          ? "SQLite 백엔드 서버에 연결하지 못해 브라우저 EntityStore 인메모리에만 저장됩니다."
+          : "인메모리 시뮬레이션 모드 — 변경은 브라우저 EntityStore에 저장됩니다."
       }
     >
       <span className={`w-2 h-2 rounded-full ${isRestConfigured() ? "bg-amber-500" : "bg-slate-400"}`} />
-      {isRestConfigured() ? "서버 미연결 (로컬 저장)" : "로컬 저장 (프로토타입)"}
+      {isRestConfigured() ? "EntityStore (로컬 폴백)" : "EntityStore 인메모리 모드"}
     </span>
   );
 }

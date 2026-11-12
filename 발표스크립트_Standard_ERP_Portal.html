@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI과제 시연 발표 스크립트 - 스탠다드 ERP 포탈 (그린전자)</title>
+  <style>
+    /* =========================================================
+       Global Reset & Typography
+       ========================================================= */
+    :root {
+      --primary: #1e3a8a;       /* Deep Navy */
+      --primary-light: #eff6ff; /* Soft Blue */
+      --secondary: #0d9488;     /* Teal */
+      --accent: #2563eb;        /* Blue */
+      --text-main: #1f2937;     /* Dark Charcoal */
+      --text-muted: #4b5563;    /* Muted Slate */
+      --bg-light: #f8fafc;
+      --card-border: #e2e8f0;
+      --action-bg: #fefce8;     /* Light Amber for screen action */
+      --action-border: #fde047;
+      --speech-bg: #ffffff;
+      --timer-badge: #dc2626;   /* Red for timing */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      color: var(--text-main);
+      background-color: #f1f5f9;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 30px auto;
+      background: #ffffff;
+      padding: 40px 50px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      position: relative;
+    }
+
+    /* =========================================================
+       Floating Action Button (Print / PDF)
+       ========================================================= */
+    .floating-print-btn {
+      position: fixed;
+      top: 24px;
+      right: 28px;
+      z-index: 1000;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+      color: #ffffff;
+      border: none;
+      border-radius: 30px;
+      padding: 12px 24px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .floating-print-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+      background: linear-gradient(135deg, #172554, #1d4ed8);
+    }
+
+    /* =========================================================
+       Header Section
+       ========================================================= */
+    .header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 24px;
+      margin-bottom: 30px;
+    }
+
+    .meta-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #2563eb;
+      background: #dbeafe;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+
+    .presenter-info {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 14px;
+      color: var(--text-muted);
+      background: var(--bg-light);
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .presenter-info span strong {
+      color: var(--text-main);
+    }
+
+    /* =========================================================
+       Step Section Layout
+       ========================================================= */
+    .step-block {
+      margin-bottom: 36px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      background: #ffffff;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+
+    .step-header {
+      background: #f8fafc;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .step-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-time {
+      font-size: 12px;
+      font-weight: 700;
+      background: #fee2e2;
+      color: #b91c1c;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #fecaca;
+    }
+
+    .step-body {
+      padding: 22px 24px;
+    }
+
+    /* =========================================================
+       Speech & Action Components
+       ========================================================= */
+    .speech-box {
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .speech-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #2563eb;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .speech-content {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      line-height: 1.7;
+      background: var(--primary-light);
+      padding: 16px 18px;
+      border-radius: 8px;
+      border-left: 5px solid #2563eb;
+    }
+
+    .speech-content em {
+      font-style: normal;
+      background: #fef08a;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .action-box {
+      background: var(--action-bg);
+      border: 1px dashed #ca8a04;
+      border-left: 5px solid #eab308;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+    }
+
+    .action-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #854d0e;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .action-content {
+      font-size: 14px;
+      color: #713f12;
+      font-style: italic;
+      line-height: 1.5;
+    }
+
+    .action-content strong {
+      font-style: normal;
+      color: #451a03;
+      text-decoration: underline;
+    }
+
+    /* Key Value Grid */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .kv-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .kv-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .kv-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .badge-diff {
+      color: #dc2626;
+      font-weight: 800;
+    }
+
+    .badge-after {
+      color: #16a34a;
+      font-weight: 800;
+    }
+
+    /* =========================================================
+       Print Styles (A4 Portrait Optimization)
+       ========================================================= */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 15mm;
+      }
+
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-size: 12pt;
+      }
+
+      .floating-print-btn {
+        display: none !important;
+      }
+
+      .container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+
+      .step-block {
+        border: 1px solid #cbd5e1 !important;
+        margin-bottom: 20px !important;
+        page-break-inside: avoid !important;
+      }
+
+      .step-header {
+        background-color: #f1f5f9 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      .speech-content {
+        background-color: #eff6ff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        border-left: 4px solid #2563eb !important;
+        font-size: 11pt !important;
+      }
+
+      .action-box {
+        background-color: #fefce8 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        border: 1px dashed #ca8a04 !important;
+        font-size: 10pt !important;
+      }
+
+      .badge-time, .meta-tag {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Print / Save PDF Button -->
+  <button class="floating-print-btn" onclick="window.print()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+    </svg>
+    📄 PDF 다운로드 / 인쇄
+  </button>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <span class="meta-tag">AI과제 교류회 표준 시연 스크립트 (총 6분 배분)</span>
+      <h1>소형가전·전자부품 제조 맞춤형 Standard ERP Portal 구축</h1>
+      <div class="presenter-info">
+        <span><strong>소속 회사:</strong> 그린전자</span>
+        <span><strong>부서/직책:</strong> 혁신기획팀 김문규 팀장</span>
+        <span><strong>시연 시스템:</strong> Standard ERP Portal (React/TS + AI Stats Engine)</span>
+      </div>
+    </div>
+
+    <!-- STEP 1. 소개 -->
+    <div class="step-block">
+      <div class="step-header">
+        <div class="step-title">STEP 1. 소개</div>
+        <span class="badge-time">소요 시간: ~1분 이내 (인사 10초)</span>
+      </div>
+      <div class="step-body">
+        <div class="speech-box">
+          <div class="speech-label">📢 발표자 발화 대본</div>
+          <div class="speech-content">
+            "안녕하십니까. 그린전자 혁신기획팀 김문규 팀장입니다.<br><br>
+            오늘 제가 소개해 드릴 과제는 신규 사업부의 경영 정상화와 데이터 기반 신속한 의사결정을 실현하기 위해 바이브 코딩 방식으로 전격 구축한 
+            <strong>『소형가전 및 전자부품 제조 맞춤형 Standard ERP Portal』</strong>입니다."
+          </div>
+        </div>
+        <div class="action-box">
+          <div class="action-label">🖥️ 화면 조작 지시문</div>
+          <div class="action-content">
+            포탈 메인 화면(<strong>대시보드 / EIS 총괄 현황</strong>)을 전체 화면으로 띄워두고, 헤더 상단의 <strong>그린전자 ERP Portal BI</strong>와 우측의 <strong>T-Code 검색창 / AI Copilot 패널</strong>이 한눈에 보이도록 커서를 위치시킵니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2. 과제 개요 -->
+    <div class="step-block">
+      <div class="step-header">
+        <div class="step-title">STEP 2. 과제 개요 (What → Why → How)</div>
+        <span class="badge-time">소요 시간: 1분 이내</span>
+      </div>
+      <div class="step-body">
+        <div class="speech-box">
+          <div class="speech-label">📢 발표자 발화 대본</div>
+          <div class="speech-content">
+            "저희 신규사업부는 초기 매출 부진으로 고비용의 상용 ERP 패키지를 도입하지 못한 채, 그룹웨어 이메일, 메신저, NAS 서버, 그리고 엑셀을 조합한 <em>수작업 중심</em>으로 비즈니스를 수행해 왔습니다.<br><br>
+            이로 인해 데이터가 개인 PC와 NAS에 뿔뿔이 흩어져 <strong>프로세스가 비정형화</strong>되었고, 거래 이력 추적이나 <strong>감사(Audit) 대응에 치명적인 리스크</strong>가 존재했습니다. 특히 수요예측, 생산계획, 수주등록, 전표처리에 관련 직원 <em>30명이 매일 인당 5시간(하루 총 150시간)</em>을 단순 트랜잭션성 수작업에 쏟아붓는 심각한 병목을 겪고 있었습니다.<br><br>
+            이에 저희는 <strong>130개 표준 업무 T-Code를 완비하고, AI 통계예측 모델과 자재·생산 역산 엔진이 결합된 원스톱 ERP 포탈</strong>을 단기간에 구축하여 단일 진실 공급원(SSOT)을 확보했습니다."
+          </div>
+        </div>
+
+        <div class="kv-grid">
+          <div class="kv-card">
+            <div class="kv-title">🚨 AS-IS 병목 & 투입 공수</div>
+            <div class="kv-value">관련 인력 30명 × <span class="badge-diff">매일 5시간 수작업</span> (일 150시간 / 엑셀·NAS 파편화)</div>
+          </div>
+          <div class="kv-card">
+            <div class="kv-title">🎯 핵심 구축 목표</div>
+            <div class="kv-value"><span class="badge-after">130개 표준 T-Code 단일 포탈</span> + AI 지수평활 수요예측 + MRP 자동화</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3. 구현 방법 -->
+    <div class="step-block">
+      <div class="step-header">
+        <div class="step-title">STEP 3. 구현 방법 (기술 스택 & AI 코딩)</div>
+        <span class="badge-time">소요 시간: ~30초 이내</span>
+      </div>
+      <div class="step-body">
+        <div class="speech-box">
+          <div class="speech-label">📢 발표자 발화 대본</div>
+          <div class="speech-content">
+            "본 시스템은 <strong>React, Vite, TypeScript, TailwindCSS</strong>를 기반으로, AI 에이전트(Claude / Antigravity)를 활용한 <em>바이브 코딩(Vibe Coding)</em> 기법으로 138개 표준 화면과 복잡한 생산·SCM 로직을 단기간에 완성했습니다.<br><br>
+            특히 고가의 서버 인프라 없이 <strong>사내 Desktop PC를 서버로 활용하는 SQLite(WAL 모드) DB</strong>와 <strong>브라우저 기반 고속 트랜잭션을 처리하는 EntityStore 인메모리 엔진</strong>을 병행 구축하여, <em>Holt 이중지수평활 통계 모델과 MPS·MRP를 프론트엔드에서 고속 시뮬레이션한 뒤 Backend 및 SQLite DB에 확정(Commit) 값만 원자적으로 저장하는 구조</em>로 설계·운영됩니다."
+          </div>
+        </div>
+
+        <div class="kv-grid">
+          <div class="kv-card">
+            <div class="kv-title">🛠️ 프론트엔드 & 백엔드 DB</div>
+            <div class="kv-value">React 18 + EntityStore (In-Memory) ∥ Node.js + SQLite 3 (WAL Mode, 단일포트 8080)</div>
+          </div>
+          <div class="kv-card">
+            <div class="kv-title">🤖 AI 모델 & 아키텍처</div>
+            <div class="kv-value">프론트엔드 Holt 시계열 시뮬레이션 ➔ 백엔드 SQLite 확정(Commit) & 감사로그(Audit)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4. 시연 (라이브 데모) -->
+    <div class="step-block">
+      <div class="step-header">
+        <div class="step-title">STEP 4. 라이브 시연 (3분 킬러 포인트: A & B)</div>
+        <span class="badge-time">소요 시간: ~3분 (실시간 Input → AI → Output)</span>
+      </div>
+      <div class="step-body">
+
+        <!-- 4-1 시연 A -->
+        <div style="margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px dashed #cbd5e1;">
+          <h4 style="font-size: 15px; color: #1e3a8a; margin-bottom: 10px;">[시연 Part A] 24주 Weekly SCM 엑셀 피벗 업로드 & 17~24주차 Holt AI 통계예측</h4>
+          
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 1-1</div>
+            <div class="action-content">
+              상단 검색창에 <strong>T-Code [SCM-001]</strong>을 입력하여 <strong>[수요예측 (Demand Forecast)]</strong> 페이지로 즉시 이동합니다.
+            </div>
+          </div>
+
+          <div class="speech-box">
+            <div class="speech-label">📢 발표자 발화 대본</div>
+            <div class="speech-content">
+              "보시는 화면은 24주차 중장기 수요예측 화면입니다. 기존에는 고객사로부터 전달받은 복잡한 주차별 구매 계획 엑셀을 담당자가 하나하나 수기로 전산에 옮겨 적느라 수많은 휴먼 에러가 발생했습니다.<br><br>
+              이제 상단의 <strong>[고객사 24주 계획 CSV 업로드]</strong> 버튼을 눌러보겠습니다."
+            </div>
+          </div>
+
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 1-2</div>
+            <div class="action-content">
+              고객사 24주 CSV 파일을 드래그 앤 드롭으로 업로드합니다. 테이블에 1주차(W27)부터 16주차(W42)까지 품목별 수량이 일괄 파싱되어 밀리초 단위로 채워지는 것을 보여줍니다.
+            </div>
+          </div>
+
+          <div class="speech-box">
+            <div class="speech-label">📢 발표자 발화 대본</div>
+            <div class="speech-content">
+              "BOM과 특수 인코딩을 자동 분석하여 16주차까지의 고객 확정 수요가 1초 만에 완벽히 로딩되었습니다.<br><br>
+              그렇다면 고객 데이터가 없는 <em>17주차부터 24주차</em>까지의 원거리 수요는 어떻게 처리할까요? 과거에는 감(Gut feeling)으로 주먹구구식 기입을 했지만, 지금은 상단의 <strong>[🤖 AI 통계예측 (Holt 지수평활)]</strong> 버튼을 클릭합니다."
+            </div>
+          </div>
+
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 1-3</div>
+            <div class="action-content">
+              <strong>[🤖 AI 통계예측 모델 적용]</strong> 모달을 엽니다. 알파(α=0.4), 베타(β=0.2) 파라미터와 95% 신뢰구간(CI) 차트를 확인시켜 준 뒤, <strong>[17~24주차 일괄 적용]</strong>을 클릭하여 테이블 후반부 셀이 파란색 하이라이트로 채워지는 모습을 보여줍니다.
+            </div>
+          </div>
+
+          <div class="speech-box">
+            <div class="speech-label">📢 발표자 발화 대본</div>
+            <div class="speech-content">
+              "과거 판매 실적과 추세 변동을 Holt 지수평활 모델이 즉시 학습하여, 17~24주차의 예상 수요와 95% 신뢰구간을 자동으로 산출하고 원클릭으로 반영했습니다."
+            </div>
+          </div>
+        </div>
+
+        <!-- 4-2 시연 B -->
+        <div>
+          <h4 style="font-size: 15px; color: #1e3a8a; margin-bottom: 10px;">[시연 Part B] 주생산계획(MPS) 라인 부하 밸런싱 & MRP 24주 화요일 입고 역산 PR 자동 발행</h4>
+
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 2-1</div>
+            <div class="action-content">
+              상단 T-Code 검색창에 <strong>[PP-001]</strong>을 입력하여 <strong>[주생산계획 (MPS)]</strong> 화면으로 이동합니다.
+            </div>
+          </div>
+
+          <div class="speech-box">
+            <div class="speech-label">📢 발표자 발화 대본</div>
+            <div class="speech-content">
+              "방금 확정한 24주 수요예측 데이터는 즉시 생산 현장으로 연동됩니다.<br>
+              MPS 화면을 보시면 <strong>1~2주차는 14일 일별 버킷</strong>으로 일일 라인 CAPA(650대)를 정밀 제어하고, <strong>3주차부터 20주차까지는 주간 버킷</strong>으로 확장되어 라인 가동 부하율, 필요 Man-Hours, 피크 주차의 잔업 및 외주 필요 수량이 실시간으로 계산됩니다."
+            </div>
+          </div>
+
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 2-2</div>
+            <div class="action-content">
+              좌측 메뉴 또는 T-Code <strong>[PP-002]</strong>로 <strong>[자재소요량계획 (MRP)]</strong> 화면으로 전환합니다. 배터리셀(리드타임 8주), BLDC 모터(6주)의 결품 예상 주차 셀을 포인팅합니다.
+            </div>
+          </div>
+
+          <div class="speech-box">
+            <div class="speech-label">📢 발표자 발화 대본</div>
+            <div class="speech-content">
+              "마지막으로 가장 중요한 자재 발주입니다. 소형가전의 핵심 부품인 <em>배터리셀은 8주, BLDC 모터는 6주라는 긴 리드타임</em>이 필요합니다.<br><br>
+              MRP 엔진은 24주 생산계획에 맞춰 공장 입고 기준인 <strong>'화요일 도착(Tuesday Arrival)'</strong>을 타깃으로 리드타임을 역산합니다. 보시는 것처럼 8주 전 발주해야 할 부족 수량이 빨간색 경고로 실시간 감지되며, <strong>[구매요청(PR) 원클릭 생성]</strong> 버튼을 누르면 단 1초 만에 구매 품의 번호가 자동 채번되어 조달 부서로 전달됩니다."
+            </div>
+          </div>
+
+          <div class="action-box">
+            <div class="action-label">🖥️ 화면 조작 2-3</div>
+            <div class="action-content">
+              부족 주차의 <strong>[원클릭 PR 발행]</strong> 버튼을 클릭하여 알림 토스트와 함께 구매요청 번호(PR-2026-XXXX)가 생성되는 화면을 보여주며 시연을 마무리합니다.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- STEP 5. 성과 요약 & 클로징 -->
+    <div class="step-block">
+      <div class="step-header">
+        <div class="step-title">STEP 5 / WRAP. 성과 요약 & 클로징</div>
+        <span class="badge-time">소요 시간: ~30초 이내</span>
+      </div>
+      <div class="step-body">
+        <div class="speech-box">
+          <div class="speech-label">📢 발표자 발화 대본</div>
+          <div class="speech-content">
+            "성과를 요약해 드리겠습니다.<br><br>
+            그린전자는 이번 Standard ERP Portal 구축을 통해,<br>
+            첫째, <strong>수요·생산·자재 계획 수립 시간</strong>을 기존 주당 7시간에서 <em>1시간으로 85% 이상 대폭 단축</em>시켰습니다.<br>
+            둘째, <strong>수주 등록과 전표 처리</strong> 역시 주당 5시간에서 <em>1시간</em>으로, <strong>문서 작성을 위한 데이터 취합</strong>도 4시간에서 <em>1시간</em>으로 경감시켰습니다.<br>
+            결과적으로 30명의 직원이 매일 5시간씩 매달리던 수작업의 <strong>80% 이상을 시스템화</strong>하였으며, 흩어져 있던 거래 데이터가 하나의 포탈에 통합되어 <strong>이력 관리와 감사 리스크를 완벽히 해소</strong>했습니다.<br><br>
+            <strong>이상으로 소형가전 및 전자부품 맞춤형 Standard ERP Portal 시연을 마치겠습니다. 감사합니다.</strong>"
+          </div>
+        </div>
+
+        <div class="kv-grid" style="margin-top: 16px;">
+          <div class="kv-card">
+            <div class="kv-title">📊 계획 수립 (수요/MPS/MRP)</div>
+            <div class="kv-value"><span class="badge-diff">주 7시간</span> ➔ <span class="badge-after">주 1시간 (85.7% 절감)</span></div>
+          </div>
+          <div class="kv-card">
+            <div class="kv-title">📝 수주 등록 & 전표 처리</div>
+            <div class="kv-value"><span class="badge-diff">주 5시간</span> ➔ <span class="badge-after">주 1시간 (80.0% 절감)</span></div>
+          </div>
+          <div class="kv-card">
+            <div class="kv-title">📁 자료 취합 및 보고서 작성</div>
+            <div class="kv-value"><span class="badge-diff">주 4시간</span> ➔ <span class="badge-after">주 1시간 (75.0% 절감)</span></div>
+          </div>
+          <div class="kv-card">
+            <div class="kv-title">🛡️ 거버넌스 & 리스크</div>
+            <div class="kv-value"><span class="badge-after">단일 원천(SSOT) 구축으로 이력 추적 & Audit 리스크 0%화</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
+

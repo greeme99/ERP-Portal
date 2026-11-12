@@ -15,6 +15,7 @@ import {
   getMpsTotalByMaterial,
 } from "../../data/mock/production";
 import { useStore } from "../../services/store";
+import SimulationCommitBar from "../../components/common/SimulationCommitBar";
 
 export default function MpsPage() {
   const mpsItems = useStore(mpsStore) as MpsDailyItem[];
@@ -85,6 +86,18 @@ export default function MpsPage() {
           <span className="text-[11px] text-sub">14일간 일별 계획 + 3주~20주 주간 MPS (CAPA·인력·외주·RTF)</span>
         </div>
       </div>
+
+      <SimulationCommitBar
+        module="PP"
+        planType="MPS_PLAN_20W"
+        planTitle="주생산계획 (MPS 14일 일별 + 20주 주간)"
+        planPeriod="2026-W27 ~ 2026-W46 (20주)"
+        stores={{
+          "production.mps": mpsItems,
+          "production.mps-weekly": weeklyMpsItems,
+        }}
+        defaultComment="MPS 라인 CAPA 밸런싱 및 인력·잔업·외주 시뮬레이션 확정"
+      />
 
       {/* 탭 네비게이션 */}
       <div className="bg-panel border border-line rounded-lg p-2 flex items-center gap-2 text-[12px]">

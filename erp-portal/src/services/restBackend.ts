@@ -1,9 +1,9 @@
-// REST 백엔드 커넥터 — store.ts 가 쓰는 전송 계층.
+// REST 백엔드 커넥터 — store.ts 가 쓰는 전송 계층 + 시뮬레이션 확정(Commit) 트랜잭션 API.
 //
 // 설계 제약: EntityStore.getAll() 은 동기이고 create() 는 Entity 를 동기 반환한다.
 // 따라서 캐시를 즉시 갱신하고 서버 전송은 백그라운드로 보낸다(낙관적 쓰기).
-// 전송이 실패하면 호출자가 롤백할 수 있게 onError 로 알린다.
-// 타입만 가져온다. 값을 import 하면 store.ts 와 순환 참조가 된다.
+// 시뮬레이션 업무(수요예측, MPS, MRP 등)는 프론트엔드 인메모리에서 시뮬레이션한 뒤
+// commitSimulationPlan() 호출 시 SQLite DB에 원자적(ACID) 트랜잭션으로 확정 저장한다.
 import type { Entity } from "./store";
 
 export type BackendStatus = "localStorage" | "rest" | "connecting";
@@ -14,16 +14,43 @@ interface SnapshotResponse {
   error?: string;
 }
 
-// 브라우저는 Vite 의 VITE_API_URL, Node(E2E·CI)는 ERP_API_URL 을 쓴다.
-// 둘 다 없으면 localStorage 프로토타입 모드다.
+export interface SimulationCommitPayload {
+  module: string;
+  planPeriod: string;
+  planType: string;
+  comment?: string;
+  stores: Record<string, Entity[]>;
+}
+
+export interface ConfirmedTransactionRecord {
+  id: string;
+  module: string;
+  planPeriod: string;
+  planType: string;
+  version: number;
+  rowCount: number;
+  comment: string;
+  committedBy: string;
+  committedRole: string;
+  committedAt: string;
+}
+
+// 브라우저는 Vite 의 VITE_API_URL 또는 단일 포트 Same-Origin, Node(E2E·CI)는 ERP_API_URL 을 쓴다.
 function resolveBaseUrl(): string {
   const fromVite = import.meta.env?.VITE_API_URL;
   const fromNode = typeof process !== "undefined" ? process.env?.ERP_API_URL : undefined;
-  return String(fromVite ?? fromNode ?? "").replace(/\/+$/, "");
+  const explicit = String(fromVite ?? fromNode ?? "").replace(/\/+$/, "");
+  if (explicit) return explicit;
+  // 브라우저에서 단일 포트(8080/5177) 통합 서빙으로 열렸을 때는 현재 오리진을 기본값으로 사용한다.
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+  return "";
 }
 
 const BASE_URL = resolveBaseUrl();
 const BOOTSTRAP_TIMEOUT_MS = 4000;
+const LOCAL_COMMIT_HISTORY_KEY = "erp-portal:prototype:v1:confirmed_transactions";
 
 let status: BackendStatus = BASE_URL ? "connecting" : "localStorage";
 let snapshot: Record<string, Entity[]> | null = null;
@@ -117,27 +144,12 @@ export function takeSnapshot(key: string): Entity[] | undefined {
   return snapshot?.[key];
 }
 
-// 신원 조회는 주입받는다. session 을 직접 import 하면
-// store → restBackend → session → mock/platform → store 순환이 생겨
-// 모듈 초기화 중 createStore 가 undefined 가 될 수 있다.
 let identityProvider: (() => Entity | undefined) | null = null;
 
 export function setIdentityProvider(provider: () => Entity | undefined) {
   identityProvider = provider;
 }
 
-/**
- * 서버가 인가를 재검증할 수 있도록 현재 사용자 신원을 보낸다.
- * 인증이 없어 위조 가능하므로 보안 경계가 아니라 오조작 방지·감사 목적이다.
- * 헤더 값은 비ASCII(한글 역할명)를 담으므로 encodeURIComponent 로 감싼다.
- *
- * [AUTH-SEAM 2/3] 신원의 전송.
- * 운영 전환 시 이 함수만 `Authorization: Bearer <token>` 반환으로 바꾼다.
- * 주의 — 지금은 GET(스냅샷·재조회)이 이 헤더를 달지 않는다. 서버가 읽기를
- * 항상 허용하기 때문이다. 인증 도입 시 GET 도 토큰을 실어야 하므로
- * jsonInit 뿐 아니라 아래 fetch 들에도 함께 적용해야 한다.
- * 절차는 문서 4.6 §5.
- */
 function identityHeaders(): Record<string, string> {
   const user = identityProvider?.();
   if (!user) return {};
@@ -153,6 +165,98 @@ const jsonInit = (method: string, payload?: unknown): RequestInit => ({
   headers: { "Content-Type": "application/json", ...identityHeaders() },
   ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
 });
+
+/**
+ * 프론트엔드 인메모리(EntityStore)에서 시뮬레이션한 결과를 SQLite DB에 확정(Commit) 저장한다.
+ * 서버 미연결(로컬 프로토타입) 상태일 때도 로컬 확정 이력을 남겨 일관된 UX를 제공한다.
+ */
+export async function commitSimulationPlan(
+  payload: SimulationCommitPayload
+): Promise<ConfirmedTransactionRecord> {
+  if (BASE_URL && status === "rest") {
+    const res = await fetch(`${BASE_URL}/api/simulation/commit`, jsonInit("POST", payload));
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body?.ok) {
+      throw new Error(body?.error ?? `시뮬레이션 확정 저장 실패 (${res.status})`);
+    }
+    return body.data as ConfirmedTransactionRecord;
+  }
+
+  // 로컬 폴백 (브라우저 localStorage 확정 이력 기록)
+  const user = identityProvider?.();
+  const history = readLocalCommitHistory();
+  const prevMax = history
+    .filter((h) => h.module === payload.module.toUpperCase() && h.planType === payload.planType)
+    .reduce((m, h) => Math.max(m, h.version), 0);
+  const nextVer = prevMax + 1;
+  const ts = new Date().toISOString();
+  const dateCode = ts.slice(0, 10).replace(/-/g, "");
+  const totalRows = Object.values(payload.stores).reduce((s, arr) => s + (Array.isArray(arr) ? arr.length : 0), 0);
+
+  const record: ConfirmedTransactionRecord = {
+    id: `CMT-${payload.module.toUpperCase()}-${dateCode}-V${nextVer}`,
+    module: payload.module.toUpperCase(),
+    planPeriod: payload.planPeriod,
+    planType: payload.planType,
+    version: nextVer,
+    rowCount: totalRows,
+    comment: payload.comment || "프론트엔드 시뮬레이션 확정 저장 (로컬)",
+    committedBy: String(user?.name ?? user?.id ?? "김문규"),
+    committedRole: String(user?.role ?? "관리자"),
+    committedAt: ts,
+  };
+
+  writeLocalCommitHistory([record, ...history].slice(0, 100));
+  return record;
+}
+
+/**
+ * 확정된 시뮬레이션 이력(Confirmed Transactions)을 조회한다.
+ */
+export async function fetchSimulationHistory(
+  module?: string,
+  limit = 20
+): Promise<ConfirmedTransactionRecord[]> {
+  if (BASE_URL && status === "rest") {
+    try {
+      const qs = new URLSearchParams();
+      if (module) qs.set("module", module);
+      qs.set("limit", String(limit));
+      const res = await fetch(`${BASE_URL}/api/simulation/history?${qs.toString()}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (Array.isArray(body?.data)) return body.data;
+      }
+    } catch {
+      /* 폴백 */
+    }
+  }
+  const local = readLocalCommitHistory();
+  return module ? local.filter((h) => h.module === module.toUpperCase()).slice(0, limit) : local.slice(0, limit);
+}
+
+function readLocalCommitHistory(): ConfirmedTransactionRecord[] {
+  try {
+    if (typeof globalThis.localStorage === "undefined") return [];
+    const raw = globalThis.localStorage.getItem(LOCAL_COMMIT_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalCommitHistory(records: ConfirmedTransactionRecord[]) {
+  try {
+    if (typeof globalThis.localStorage === "undefined") return;
+    globalThis.localStorage.setItem(LOCAL_COMMIT_HISTORY_KEY, JSON.stringify(records));
+  } catch {
+    /* 무시 */
+  }
+}
 
 async function request(path: string, init: RequestInit): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/entities/${path}`, init);
